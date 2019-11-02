@@ -1,0 +1,6 @@
+*.exe
+*.o
+rawdata.h
+x.*
+y.y
+z.z
