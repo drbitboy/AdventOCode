@@ -61,11 +61,21 @@ class BOUNDARY(object):
     """pin is on "in" side, pout is on "out" side, of boundary line"""
     self.pout_name = pout.name
     self.pin = pin
-    self.pintopout = V(pin,pout)
-    self.magsqdiv2 = self.pintopout.magsq / 2.0
+    self.pintopout = V(pout,pin)
+    self.magsqdiv2 = (self.pintopout.magsq / 2.0) - (0./1024.)
 
   def closer_to_pin(self,pt):
     """Return True if pt is on pin side of boundary line"""
+    if do_debug:
+      print('closer_to_pin'
+           ,self.pout_name
+           ,('[pintopout]',self.pintopout.vec.x,self.pintopout.vec.y,)
+           ,('[pt]',pt.x,pt.y,)
+           ,('[pin]->[{0}]'.format(pt.name),V(pt,self.pin).vec.x,V(pt,self.pin).vec.y,)
+           ,('[pin]',self.pin.x,self.pin.y,)
+           ,self.magsqdiv2
+           ,self.pintopout.vdot(V(pt,self.pin))
+           )
     return self.pintopout.vdot(V(pt,self.pin)) < self.magsqdiv2
 
   def __cmp__(this,that):
@@ -242,11 +252,14 @@ if "__main__" == __name__ and sys.argv[1:]:
 
         for boundary in boundaries:
           is_in = boundary.closer_to_pin(ptest)
+          if do_debug: print((area,is_in,boundary.pout_name,(ptest.x,ptest.y,),pin.name,))
           if not is_in: break
+        if do_debug: print('')
 
         ### Increment area if ptest is closest to pin
 
-        if is_in: area += 1
+        if is_in:
+          area += 1
 
         ### End of [while steps] loop
         ############################
