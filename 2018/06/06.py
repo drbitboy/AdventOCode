@@ -6,7 +6,7 @@ do_debug = "DEBUG" in os.environ
 
 V = type(None)
 
-class PT:
+class PT(object):
   """point"""
   def __init__(self,rawtextline='',xy=None):
 
@@ -26,7 +26,7 @@ class PT:
 
 gbl_vzero = PT(xy=(0,0))
 
-class V:
+class V(object):
   """vector between two points"""
 
 
@@ -53,12 +53,13 @@ class V:
     return self.vdot(other) / math.sqrt(self.magsq * other.magsq)
 
 
-class BOUND:
+class BOUNDARY(object):
 
   """Model boundary line halfway from point pin to pout"""
 
   def __init__(self,pin,pout):
     """pin is on "in" side, pout is on "out" side, of boundary line"""
+    self.pout_name = pout.name
     self.pin = pin
     self.pintopout = V(pin,pout)
     self.magsqdiv2 = self.pintopout.magsq / 2.0
@@ -66,6 +67,11 @@ class BOUND:
   def closer_to_pin(self,pt):
     """Return True if pt is on pin side of boundary line"""
     return self.pintopout.vdot(V(pt,self.pin)) < self.magsqdiv2
+
+  def __cmp__(this,that):
+    if this.magsqdiv2 < that.magsqdiv2: return -1
+    if this.magsqdiv2 > that.magsqdiv2: return 1
+    return 0
 
 
 if "__main__" == __name__ and sys.argv[1:]:
@@ -120,18 +126,27 @@ if "__main__" == __name__ and sys.argv[1:]:
 
     if pin.name in st_convex_pts: continue
 
-
-    ### Initialize loop parameters
+    ### Initialize outer loop parameters
     ### - Create test point ptest, which will move away from pin in a
     ###   spiral pattern
     ### - Initialize area to 1, for the point itself
     ### - Termination criterion [all_out_legs]:  successive passes
     ###   without an increase in area
     ### - Spiral control counter
+    ### - Generate boundary lines between pin and all other points
 
     ptest = PT('test point',xy=(pin.x,pin.y))
-    area, all_out_legs, spiral_ounter = 1
+    area, all_out_legs, spiral_counter = 1,0,0
 
+    boundaries = [BOUNDARY(pin,pother)
+                  for pother in lt_pts
+                  if pother.name != pin.name
+                 ]
+    boundaries.sort()
+
+    if do_debug:
+      print([pin.name])
+      print([(b.pout_name,b.magsqdiv2,) for b in boundaries])
     
     while all_out_legs < 8:
 
@@ -197,20 +212,36 @@ if "__main__" == __name__ and sys.argv[1:]:
       ###  +-------------4-------> ...
       ###
 
+      ### Inner loop moves ptest by [steps] steps as directed by
+      ### couuntermod4
+
+      if do_debug: print(dict(all_out_legs=all_out_legs
+                             ,area=area
+                             ,steps=steps
+                             ,spiral_counter=spiral_counter
+                             ,countermod4=countermod4
+                             ,x=ptest.x
+                             ,y=ptest.y
+                             )
+                        )
+
       while steps:
+
+        ### Move ptest by one step
 
         steps -= 1
 
-        if countermod4==1: ptest.moveup()
-        if countermod4==2: ptest.moveleft()
-        if countermod4==3: ptest.movedown()
-        if countermod4==0: ptest.moveright()
+        ### Move ptest in direction per countermod4
 
-        for bound in [BOUND(pin,pother)
-                      for pother in lt_pts
-                      if pother.name != pin
-                     ]:
-          is_in = bound.closer_to_pin(ptest)
+        if   countermod4==1: ptest.moveup()
+        elif countermod4==2: ptest.moveleft()
+        elif countermod4==3: ptest.movedown()
+        else               : ptest.moveright()
+
+        ### Test if ptest is closest to pin than to other points
+
+        for boundary in boundaries:
+          is_in = boundary.closer_to_pin(ptest)
           if not is_in: break
 
         ### Increment area if ptest is closest to pin
@@ -227,6 +258,8 @@ if "__main__" == __name__ and sys.argv[1:]:
 
     ### End of [while all_out_legs < 8] loop
     ################################
+
+    ### Save maximum area
 
     if area > max_area: max_area = area
 
