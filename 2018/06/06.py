@@ -143,7 +143,11 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   for pt,ptlt_mds in lt_mds: pt.calc_area(ptlt_mds)
   
-  print('PartI area = [{0}]'.format(max([pt.area for pt in lt_pts])))
+  print(dict(partI_area=max([pt.area for pt in lt_pts])))
+
+
+  if "SKIP_PART_II" in os.environ: sys.exit(0)
+
 
   xmean = sum([p.x for p in lt_pts]) / n_pts
   ymean = sum([p.x for p in lt_pts]) / n_pts
