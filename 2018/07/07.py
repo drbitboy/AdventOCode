@@ -38,7 +38,7 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   n_workers = int(os.environ.get("WORKERS",5))
   backlogs = [list() for iworker in range(n_workers)]
-  print(dict(n_workers=len(backlogs)))
+  if do_debug: print(dict(n_workers=len(backlogs)))
 
   time_offset = 1 + int(os.environ.get("TIME_OFFSET",60)) - ord('A')
 
@@ -58,7 +58,7 @@ if "__main__" == __name__ and sys.argv[1:]:
       one = lt_possibles.pop()
       backlog.extend([one] * (time_offset + ord(one)))
       st_keys.remove(one)
-      print(dict(Start=(T,one,)))
+      if do_debug: print(dict(Start=(T,one,)))
 
     T += 1
 
@@ -68,7 +68,7 @@ if "__main__" == __name__ and sys.argv[1:]:
       popped = backlog.pop()
       if not backlog:
         finished.append(popped)
-        print(dict(End=(T,popped,)))
+        if do_debug: print(dict(End=(T,popped,)))
 
     lt_out.extend(finished)
     list(map(st_out.add,finished))
