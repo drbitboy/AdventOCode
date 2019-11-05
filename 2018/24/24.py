@@ -148,14 +148,24 @@ yields this list of tokens (toks argument):
     """max(<list>,key=<key>) key function to select target for self
 
 Metrics:
-1) target which has not already been selected as a target by another
-     group during the selection process, and which same target has
-     at least one unit*;
+1a) target which has not already been selected as a target by another
+     group during the selection process*,
+1b) target has a non-zero number of units**,
+1c) and attacker would deal a non-zero amount of damage***.
 2) to which target the most damage will be done by self;
 3) target with largest effective power;
 4) target with highest initiative
 
-* Do not select targets with no units remaining
+* "Defending groups can only be chosen as a target by one attacking
+   group."
+
+** "Groups never have zero or negative units; instead, the group is
+    removed from combat."
+
+*** "Deal damage" does "not [account] for whether defender has enough
+     units to actually receive all of [the] damage," but "If [attacker]
+     cannot deal any defending groups damage, it does not choose a
+     target."
 
 Return a four-tuple with a value representing each of those metrics
 
@@ -165,23 +175,39 @@ Usage:
   selected_target.set_attacker(attacker)
 
 """
-    return (((target.attacker is None) and (target.units > 0))
+    return (((target.attacker is None) and        ### (1a)
+             (target.units > 0) and               ### (1b)
+             (target.calculate_damage(self) > 0)  ### (1b)
+            )
             and 1 or 0
-           ,target.calculate_damage(self)
-           ,target.effective_power()
-           ,target.initiative
+           ,target.calculate_damage(self)         ### (2)
+           ,target.effective_power()              ### (3)
+           ,target.initiative                     ### (4)
            )
 
 
   ##################################
   def calculate_damage(self, attacker):
-    """Calculate attack damage to self by attack from attacker"""
+    """Calculate attack damage dealt to self by attack from attacker.
+
+Accounts for attacker effective power and self (target) immunities and
+weaknesses; does not account for self.units*
+
+* "after accounting for [target] weaknesses and immunities, but not
+   accounting for whether the defending group [self] has enough units
+   to actually receive all of that damage" i.e do not account for how
+   much actual damage would be ***received*** by self, so "damage dealt"
+   to self can be non-zero ***even if*** self.units is zero.
+
+"""
 
     ### If attacker is not a group (i.e. is None), then return zero
 
     if not isinstance(attacker,GROUP): return 0
 
     ### Scale effective power of attacker by any immunity or weakness
+    ### - Do "not [account] for whether the defending group has enough
+    ###   units to actually receive all of that damage."
 
     return ( attacker.effective_power()
            * self.dt_iw_multiples[attacker.attack_type]
@@ -195,14 +221,20 @@ Usage:
     damage = self.calculate_damage(self.attacker)
 
     if damage > 0:
+
+      ### Do not remove more units than self has (self.units)
+
       units_lost = min([damage / self.hp, self.units])
+
       if log:
         print('[{0}] attacks [{1}]:  damage={2}; units lost={3}'.format(
               self.attacker, self, damage, units_lost)
              )
+
       self.units -= units_lost
 
     else:
+
       if log:
         print('[{0}] attacks [{1}]:  damage={2}'.format(
               self.attacker, self, damage)
@@ -223,18 +255,17 @@ Usage:
     """Set attacker for next attacking phase
 
 - Do not allow overwriting one attacker with another
-- Allow neither attacker nor defender to have no units
+- "If [attacker] cannot deal any defending groups damage,
+   it does not choose a target."
 
 """
     if attacker is None:
       self.attacker = None
       return
 
-    if not isinstance(self.attacker,GROUP):
-
-      if (self.units > 0 and attacker.units > 0):
-
-        self.attacker = attacker
+    if not isinstance(self.attacker,GROUP
+                       ) and self.calculate_damage(attacker) > 0:
+      self.attacker = attacker
 
 
 ### End of class GROUP
@@ -271,7 +302,8 @@ Return a two-tuple with a value representing each metric
 def attack_order_key(group):
   """Attack order key for sorted list with 1st attacker last in list
 
-Metric is that higher initiative attacks first.
+Metric is that higher initiative attacks first.  "Groups attack in
+decreasing order of initiative, ..."
 
 N.B. Each attacker will be in the .attacker member of the group it is
      attacking, so it is the ***targeted*** entities that will be sorted
@@ -346,6 +378,8 @@ class OHDEER(object):
       while lt_selection_ordered:
         attacker = lt_selection_ordered.pop()
 
+        if not attacker.units: continue
+
         ### Select group to attack in target list, and target that list
         target = max(lt_target,key=attacker.select_target_key)
         target.set_attacker(attacker)
@@ -360,13 +394,16 @@ class OHDEER(object):
       lt_target = lt_two[0]
 
     ################################
-    ### Attacking phase:  buld attack-sorted list; run attacks
+    ### Attacking phase:  buld attacker-sorted list of defendeers;
+    ###                   run attacks
     ################################
 
-    lt_defenses = sorted(lt_both,key=attack_order_key)
+    lt_defenders = sorted(lt_both,key=attack_order_key)
 
-    while lt_defenses:
-      lt_defenses.pop().run_defense(log=log)
+    while lt_defenders:
+      lt_defenders.pop().run_defense(log=log)
+
+    ### Bookkeeping check
 
     assert not [group.attacker
                 for group in lt_both
