@@ -159,7 +159,7 @@ Usage:
   selected_target.set_attacker(attacker)
 
 """
-    return (target.targeted_by is None) and 1 or 0
+    return ((target.targeted_by is None) and 1 or 0
            ,target.calculate_damage(self)
            ,target.effective_power()
            ,target.initiative
@@ -209,9 +209,13 @@ Usage:
 - Allow neither attacker nor defender to have no units
 
 """
-    if (self.targeted_by is None) or (attacker is None):
+    if attacker is None:
+      self.targeted_by = attacker
+      return
 
-      if attacker is None or (self.units > 1 and attacker.units > 1):
+    if not isinstance(self.targeted_by,GROUP):
+
+      if (self.units > 1 and attacker.units > 1):
 
         self.targeted_by = attacker
 
