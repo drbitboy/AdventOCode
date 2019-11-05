@@ -19,7 +19,7 @@ immunity system units or infection units
   ##################################
   def __repr__(self):
     if not do_debug: return self.group_name
-    return '{0}/{1}/{2}:{3}/{4}/i:{5}/w:{6}'.format(
+    return '{7}/{0}/{1}/{2}:{3}/{4}/i:{5}/w:{6}'.format(
       self.units
       ,self.hp
       ,self.attack_damage
@@ -27,6 +27,7 @@ immunity system units or infection units
       ,self.initiative
       ,','.join([k for k in GROUP.st_attacks if not self.dt_iw_multiples[k]])
       ,','.join([k for k in GROUP.st_attacks if 2 == self.dt_iw_multiples[k]])
+      ,self.group_name
       )
 
   ##################################
@@ -159,7 +160,7 @@ Usage:
   selected_target.set_attacker(attacker)
 
 """
-    return ((target.targeted_by is None) and 1 or 0
+    return ((target.attacker is None) and 1 or 0
            ,target.calculate_damage(self)
            ,target.effective_power()
            ,target.initiative
@@ -167,25 +168,25 @@ Usage:
 
 
   ##################################
-  def calculate_damage(self, targeted_by):
-    """Calculate attack damage to self by attack from targeted_by"""
+  def calculate_damage(self, attacker):
+    """Calculate attack damage to self by attack from attacker"""
 
-    ### If targeted_by is not a group (i.e. is None), then return zero
+    ### If attacker is not a group (i.e. is None), then return zero
 
-    if not isinstance(targeted_by,GROUP): return 0
+    if not isinstance(attacker,GROUP): return 0
 
-    ### Scale effective power of targeted_by by any immunity or weakness
+    ### Scale effective power of attacker by any immunity or weakness
 
-    return ( targeted_by.effective_power()
-           * self.dt_iw_multiples[targeted_by.attack_type]
+    return ( attacker.effective_power()
+           * self.dt_iw_multiples[attacker.attack_type]
            )
 
 
   ##################################
-  def run_attack(self):
-    """Run an attack from GROUP self.targeted_by"""
+  def run_defense(self):
+    """Run an attack from GROUP self.attacker"""
 
-    damage = self.calculate_damage(self.targeted_by)
+    damage = self.calculate_damage(self.attacker)
 
     if damage > 0:
       units_lost = min([damage / self.hp, self.units])
@@ -210,14 +211,14 @@ Usage:
 
 """
     if attacker is None:
-      self.targeted_by = attacker
+      self.attacker = attacker
       return
 
-    if not isinstance(self.targeted_by,GROUP):
+    if not isinstance(self.attacker,GROUP):
 
       if (self.units > 1 and attacker.units > 1):
 
-        self.targeted_by = attacker
+        self.attacker = attacker
 
 
 ### End of class GROUP
@@ -256,16 +257,16 @@ def attack_order_key(group):
 
 Metric is that higher initiative attacks first.
 
-N.B. Each attacker will be in the .targeted_by member of the group it is
+N.B. Each attacker will be in the .attacker member of the group it is
      attacking, so it is the ***targeted*** entities that will be sorted
 
 """
 
-  ### GROUPs that are not targeted will have None as their .targeted_by
+  ### GROUPs that are not targeted will have None as their .attacker
   ### member; sort them last:
-  if not isinstance(group.targeted_by,GROUP): return -1
+  if not isinstance(group.attacker,GROUP): return -1
 
-  return group.targeted_by.initiative
+  return group.attacker.initiative
 
 
 ########################################################################
@@ -287,9 +288,9 @@ class OHDEER(object):
       L = len(toks)
 
       if 2 == L:
+        assert 'System:' == toks.pop()
         side = toks.pop()
-        assert 'System:' == side
-        assert 'Immune' == toks.pop()
+        assert 'Immune' == side
         team = self.lt_immune
 
       elif 1 == L:
@@ -298,7 +299,9 @@ class OHDEER(object):
         team = self.lt_infection
 
       elif 17 < L:
-        group_name = '{0} group {1}'.format(side[:-1], len(team) + 1)
+        group_name = '{0} group {1}'.format(side.rstrip(':')
+                                           , len(team) + 1
+                                           )
         team.append(GROUP(toks, group_name=group_name))
 
       assert not len(toks)
@@ -328,20 +331,29 @@ class OHDEER(object):
         target_group = max(lt_target,key=lt_group.select_target_key)
 
         ### And target that list
-        target_group.set_targeted_by(lt_group)
+        target_group.set_attacker(lt_group)
 
       ### Switch target list
       lt_target = lt_two[0]
 
     ### Attacking phase:  buld attack-sorted list; run attacks
 
-    lt_attack = sorted(sum(lt_two,[]),key=attack_order_key)
+    lt_defenses = sorted(sum(lt_two,[]),key=attack_order_key)
 
-    while lt_attack: lt_attack.pop().run_attack()
+    while lt_defenses: lt_defenses.pop().run_defense()
 
 
   ##################################
-  def sums_units(self,lt):
+  def run_war(self):
+    """Execute fights until one of the teams has no more units"""
+
+    while 0 < min(self.sums_units()): self.run_fight()
+
+    return self.sums_units()
+
+
+  ##################################
+  def sums_units(self):
     """Sum numbers of units in the arrays of groups"""
 
     return ( sum([group.units for group in self.lt_immune])
@@ -355,3 +367,5 @@ if "__main__" == __name__ and sys.argv[1:]:
   with open(sys.argv[1],'r') as fin: ohdeer = OHDEER(fin)
 
   print(vars(ohdeer))
+
+  print(ohdeer.run_war())
