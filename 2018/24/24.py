@@ -33,10 +33,9 @@ immune system units, or of infection units.
       )
 
   ##################################
-  def __init__(self,toks, group_name='Unknown group'):
+  def __init__(self,toks, boost, group_name='Unknown group'):
     """Constructor for a group of immune system or infection units
 
-========================================================================
 Input argument [toks] is an iterator of strings from a line of the input
 file e.g. this input line:
 
@@ -69,7 +68,7 @@ yields this list of tokens (toks argument):
     assert 'damage' ==toks.pop()
     self.attack_type = toks.pop()
     assert self.attack_type in GROUP.st_attacks
-    self.unit_attack_damage = int(toks.pop())
+    self.unit_attack_damage = int(toks.pop()) + boost
     assert 'does' == toks.pop()
     assert 'that' == toks.pop()
     assert 'attack' == toks.pop()
@@ -351,7 +350,7 @@ class OHDEER(object):
   """Class to hold the states of a deer's immunities and infections"""
 
   ##################################
-  def __init__(self,iter):
+  def __init__(self,iter,boost):
     """Parse iterable of strings that contain descriptions of groups"""
 
     self.lt_immune = list()     ### Create lists, of immune system ...
@@ -383,7 +382,10 @@ class OHDEER(object):
         group_name = '{0} group {1}'.format(side.rstrip(':')
                                            , len(team) + 1
                                            )
-        team.append(GROUP(toks, group_name=group_name))
+        team.append(GROUP(toks
+                         , team is self.lt_immune and boost or 0
+                         , group_name=group_name
+                         ))
 
       assert not len(toks)  ### Only other line should be empty
 
@@ -480,13 +482,15 @@ class OHDEER(object):
 Return numbers of units
 """
 
-    while 0 < min(self.sums_units()):
+    last_sums = (-1,-1)
 
-      log = do_log24 or (do_debug and (10 > min(self.sums_units())))
+    while 0 < min(self.sums_units()) and self.sums_units() != last_sums:
 
-      self.run_fight(log=log)
+      last_sums = self.sums_units()
 
-      if log and do_debug: pprint.pprint(self.__dict__)
+      self.run_fight(log=do_log24)
+
+      if do_log24 and do_debug: pprint.pprint(self.__dict__)
 
     return self.sums_units()
 
@@ -504,12 +508,73 @@ Return numbers of units
 
 
 ####################################
-if "__main__" == __name__ and sys.argv[1:]:
+def run_with_boost(argv1, boost):
 
   ### Open input file, pass to OHDEER constructor at iterable of strings
 
-  with open(sys.argv[1],'r') as fin: ohdeer = OHDEER(fin)
+  with open(sys.argv[1],'r') as fin: ohdeer = OHDEER(fin,boost)
 
-  if do_debug or do_log24: pprint.pprint(ohdeer.__dict__)
+  if do_debug or do_log24:
+    pprint.pprint(dict(boost=boost))
+    pprint.pprint(ohdeer.__dict__)
 
-  print(ohdeer.run_war())             ### Run the war, print the results
+  return ohdeer.run_war()            ### Run the war, return the results
+
+
+####################################
+if "__main__" == __name__ and sys.argv[1:]:
+
+  argv1 = sys.argv[1]
+
+  result_boost_0 = run_with_boost(argv1,0)
+
+  if do_debug: print(dict(result_boost_0=result_boost_0))
+
+  lord = result_boost_0[0] and 'lived' or 'died'
+
+  print('PartI:  {0} and deer {1}'.format(max(result_boost_0),lord))
+
+  if 'lived' == lord:
+    print('PartII:  0 boost required to live')
+    sys.exit(0)
+
+  boost_die = 0
+  boost_live = 1
+
+  ######################################################################
+  ### Invariant 1:  Deer dies at boost_die and below
+
+  ### While deer dies:
+
+  while True:
+
+    result_live = run_with_boost(argv1,boost_live)
+
+    if not result_live[1]: break
+
+    boost_die = boost_live     ### Invariant 1
+
+    boost_live <<= 1           ### Double boost_live
+
+
+  ######################################################################
+  ### Invariant 2:  deer lives at boost_live and above
+
+  ### - Binary search
+  while boost_live > (boost_die+1):
+
+    boost = boost_die + ((boost_live - boost_die) >> 1)     ### Midpoint
+
+    result = run_with_boost(argv1,boost)  ### Run with boost at midpoint
+
+    if do_debug or True:
+      print(dict(result=result,boost=boost))
+      sys.stdout.flush()
+
+    if result[1]: boost_die = boost                     ### Invariant 1
+    else        :
+      boost_live = boost                                ### Invariant 2
+      result_live = result                         ### Save live result
+
+  print('PartII:  {0}; boost<={1}  required to live'
+       .format(result_live[0],boost_live))
