@@ -1,7 +1,9 @@
 import os
 import sys
+import pprint
 
 do_debug = "DEBUG" in os.environ
+do_log24 = "LOG24" in os.environ
 
 class GROUP(object):
   """Class to hold properties and execute behavior of group of either
@@ -146,11 +148,14 @@ yields this list of tokens (toks argument):
     """max(<list>,key=<key>) key function to select target for self
 
 Metrics:
-1) which target has not already been selected as a target by another
-   group;
+1) target which has not already been selected as a target by another
+     group during the selection process, and which same target has
+     at least one unit*;
 2) to which target the most damage will be done by self;
 3) target with largest effective power;
-3) target with highest initiative
+4) target with highest initiative
+
+* Do not select targets with no units remaining
 
 Return a four-tuple with a value representing each of those metrics
 
@@ -160,7 +165,8 @@ Usage:
   selected_target.set_attacker(attacker)
 
 """
-    return ((target.attacker is None) and 1 or 0
+    return (((target.attacker is None) and (target.units > 0))
+            and 1 or 0
            ,target.calculate_damage(self)
            ,target.effective_power()
            ,target.initiative
@@ -183,14 +189,24 @@ Usage:
 
 
   ##################################
-  def run_defense(self):
+  def run_defense(self,log=False):
     """Run an attack from GROUP self.attacker"""
 
     damage = self.calculate_damage(self.attacker)
 
     if damage > 0:
       units_lost = min([damage / self.hp, self.units])
+      if log:
+        print('[{0}] attacks [{1}]:  damage={2}; units lost={3}'.format(
+              self.attacker, self, damage, units_lost)
+             )
       self.units -= units_lost
+
+    else:
+      if log:
+        print('[{0}] attacks [{1}]:  damage={2}'.format(
+              self.attacker, self, damage)
+             )
 
     self.clear_attacker()
 
@@ -199,11 +215,11 @@ Usage:
   def clear_attacker(self):
     """Clear attacker"""
 
-    self.set_attacker(None)
+    self.set_attacker()
 
 
   ##################################
-  def set_attacker(self,attacker):
+  def set_attacker(self,attacker=None):
     """Set attacker for next attacking phase
 
 - Do not allow overwriting one attacker with another
@@ -211,12 +227,12 @@ Usage:
 
 """
     if attacker is None:
-      self.attacker = attacker
+      self.attacker = None
       return
 
     if not isinstance(self.attacker,GROUP):
 
-      if (self.units > 1 and attacker.units > 1):
+      if (self.units > 0 and attacker.units > 0):
 
         self.attacker = attacker
 
@@ -310,12 +326,15 @@ class OHDEER(object):
     ####################################################################
 
   ##################################
-  def run_fight(self):
+  def run_fight(self,log=False):
     """Run one round of target_selection and attacking"""
 
     lt_two = [self.lt_immune, self.lt_infection]
+    lt_both = sum(lt_two,[])
 
+    ################################
     ### Selection phase
+    ################################
 
     lt_target = lt_two[-1]
 
@@ -325,29 +344,44 @@ class OHDEER(object):
       lt_selection_ordered = sorted(lt,key=selection_order_key)
 
       while lt_selection_ordered:
-        lt_group = lt_selection_ordered.pop()
+        attacker = lt_selection_ordered.pop()
 
-        ### Find group to attack in target list
-        target_group = max(lt_target,key=lt_group.select_target_key)
+        ### Select group to attack in target list, and target that list
+        target = max(lt_target,key=attacker.select_target_key)
+        target.set_attacker(attacker)
 
-        ### And target that list
-        target_group.set_attacker(lt_group)
+        if not (target.attacker is attacker):
+          if log:
+            print('[{0}] could not select [{1}] to attack; current attacker is [{2}]'.format(
+                  attacker, target, target.attacker)
+                 )
 
       ### Switch target list
       lt_target = lt_two[0]
 
+    ################################
     ### Attacking phase:  buld attack-sorted list; run attacks
+    ################################
 
-    lt_defenses = sorted(sum(lt_two,[]),key=attack_order_key)
+    lt_defenses = sorted(lt_both,key=attack_order_key)
 
-    while lt_defenses: lt_defenses.pop().run_defense()
+    while lt_defenses:
+      lt_defenses.pop().run_defense(log=log)
+
+    assert not [group.attacker
+                for group in lt_both
+                if not (group.attacker is None)
+               ]
 
 
   ##################################
   def run_war(self):
     """Execute fights until one of the teams has no more units"""
 
-    while 0 < min(self.sums_units()): self.run_fight()
+    while 0 < min(self.sums_units()):
+      log = do_log24 or (do_debug and (10 > min(self.sums_units())))
+      self.run_fight(log=log)
+      if log and do_debug: pprint.pprint(self.__dict__)
 
     return self.sums_units()
 
@@ -366,6 +400,6 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   with open(sys.argv[1],'r') as fin: ohdeer = OHDEER(fin)
 
-  print(vars(ohdeer))
+  if do_debug or do_log24: pprint.pprint(ohdeer.__dict__)
 
   print(ohdeer.run_war())
