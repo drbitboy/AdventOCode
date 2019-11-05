@@ -177,7 +177,7 @@ Usage:
 """
     return (((target.attacker is None) and        ### (1a)
              (target.units > 0) and               ### (1b)
-             (target.calculate_damage(self) > 0)  ### (1b)
+             (target.calculate_damage(self) > 0)  ### (1c)
             )
             and 1 or 0
            ,target.calculate_damage(self)         ### (2)
