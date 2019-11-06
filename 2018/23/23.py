@@ -1,12 +1,12 @@
 import re
 import os
 import sys
-import pprint
 
 do_debug = "DEBUG" in os.environ
 do_log23 = "LOG23" in os.environ
 
 
+########################################################################
 class OH(object):
   """Octahedron (OH), i.e. sphere with Manhattan Distance (MD) radius.
 
@@ -110,8 +110,6 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   oh_maxr = ohs[0]                           ### OH with maximum radius
 
-  print(oh_maxr.__dict__)
-
   maxr = oh_maxr.r
   for oh in ohs:
     assert oh_maxr==oh or maxr>oh.r     ### Ensure there is 1 max radius
@@ -133,7 +131,7 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   st_subsets = set()                     ### Initialize set to hold sets
 
-  sys.stdout.flush()
+  if do_debug: sys.stdout.flush()
 
   Lmx = 0             ### Keep track of size of maximum set found so far
 
@@ -153,17 +151,19 @@ if "__main__" == __name__ and sys.argv[1:]:
       if len(st) < Lmx:    ### Ignore this OH if set size goes below max
         break
 
-    if len(st) >= Lmx:      ### Add this OH's set if size is max so far
+    if len(st) >= Lmx:       ### Add this OH's set if size is max so far
       Lmx = len(st)
       st_subsets.add(tuple(sorted(st)))
       #st_subsets.add((Lmx,tuple(sorted(st)),))
 
-    if ((oh.idx+1)%100): continue           ### Show progress while slow
-    sys.stderr.write('{0}...'.format(oh.idx+1))
-    sys.stderr.flush()
+    if do_debug:                            ### Show progress while slow
+      if ((oh.idx+1)%100): continue
+      sys.stderr.write('{0}...'.format(oh.idx+1))
+      sys.stderr.flush()
 
-  sys.stderr.write('done\n')                ### Complete progress output
-  sys.stderr.flush()
+  if do_debug:                              ### Complete progress output
+    sys.stderr.write('done\n')
+    sys.stderr.flush()
 
   ######################################################################
   ### At this point, st_subsets contains tuples, each of which contains
