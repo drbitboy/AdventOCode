@@ -76,8 +76,6 @@ if "__main__" == __name__ and sys.argv[1:]:
   for oh in ohs:
     assert oh_maxr==oh or maxr>oh.r
 
-  print(oh_maxr.__dict__)
-
   botcount = 0
   for oh in ohs:
     if oh_maxr.mdinside(oh): botcount += 1
