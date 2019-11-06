@@ -12,9 +12,12 @@ class OH(object):
 
   vzero = (0,)*3
 
-  def __init__(self,tup4,idx):
+  def __repr__(self): return 'OH({0},{1})'.format(self.idx,self.orig_idx)
 
-    self.idx = idx
+  def __init__(self,tup4,orig_idx):
+
+    self.orig_idx = orig_idx
+    self.idx = -1
     self.xyz = tup4[:3]
     self.r = (4==len(tup4)) and tup4[3] or 0 
 
@@ -32,6 +35,8 @@ class OH(object):
         vertidx += 1
       self.verts.append(vadd(self,idx=vertidx,offset=(isplus and self.r or -self.r)))
 
+    self.intersecting_ohs = set()
+
   def md(self,ohv):
     """Manhattan distance"""
     v = ohv2v(ohv)
@@ -40,14 +45,18 @@ class OH(object):
            +abs(self.xyz[2]-v[2])
            )
 
-  def mdinside(self,ohv):
+  def ohintersect(self,ohother):
+    return self.mdinside(ohother.xyz,deltar=ohother.r)
+
+  def mdinside(self,ohv,deltar=False):
     v = ohv2v(ohv)
     result = abs(self.xyz[0] - v[0])
-    if result > self.r: return False
+    r = self.r + (deltar and deltar or 0)
+    if result > r: return False
     result += abs(self.xyz[1] - v[1])
-    if result > self.r: return False
+    if result > r: return False
     result += abs(self.xyz[2] - v[2])
-    return (result <= self.r)
+    return (result <= r)
 
 def ohv2v(ohvin):
   if isinstance(ohvin,OH): return ohvin.xyz
@@ -64,14 +73,26 @@ def vadd(ohv1,ohv2=OH.vzero,idx=-1,offset=0):
 ####################################
 if "__main__" == __name__ and sys.argv[1:]:
 
-  ohidx = 0
+  ohs = list()
   with open(sys.argv[1],'r') as fin:
-    ohs = list(map(lambda s:eval('OH(({0},),ohidx)'.format(re.sub("[^-\d,]","",s))),fin))
-    ohidx += 1
+    ohline = 0
+    for s in fin:
+      tup4 = eval('({0},)'.format(re.sub("[^-\d,]","",s)))
+      ohs.append(OH(tup4,ohline))
+      ohline += 1
+
+  L = len(ohs)
 
   def keyr(oh): return oh.r
 
-  oh_maxr = max(ohs,key=keyr)
+  ohs.sort(key=keyr)
+
+  for idx,oh in enumerate(ohs): oh.idx = idx
+
+  oh_maxr = ohs[-1]
+
+  print(oh_maxr.__dict__)
+
   maxr = oh_maxr.r
   for oh in ohs:
     assert oh_maxr==oh or maxr>oh.r
@@ -81,3 +102,42 @@ if "__main__" == __name__ and sys.argv[1:]:
     if oh_maxr.mdinside(oh): botcount += 1
 
   print('PartI:  {0}'.format(botcount))
+
+  for oh in ohs:
+    for i,oh2 in enumerate(ohs):
+      if oh.ohintersect(oh2):
+        oh.intersecting_ohs.add(i)
+
+  lens = [(len(oh.intersecting_ohs),oh,oh.intersecting_ohs,) for i,oh in enumerate(ohs)]
+  
+  st_subsets = set()
+
+  sys.stdout.flush()
+
+  for ioh,oh in enumerate(ohs):
+    st = oh.intersecting_ohs
+    for idx in st:
+      st = st.intersection(ohs[idx].intersecting_ohs)
+      if not len(st): break
+    if len(st): st_subsets.add((len(st),tuple(sorted(st)),))
+    if ((ioh+1)%100): continue
+    sys.stderr.write('{0}...'.format(ioh+1))
+    sys.stderr.flush()
+
+  sys.stderr.write('done\n')
+  sys.stderr.flush()
+
+  Ltups = sorted(st_subsets)
+  Lmax = Ltups[-1][0]
+  Lmaxtups = list()
+  while Ltups and Ltups[-1][0] == Lmax: Lmaxtups.append(Ltups.pop())
+
+  partII = min([max([ ohs[idx].md(OH.vzero)-ohs[idx].r
+                      for idx in tup
+                    ]
+                   )
+                for L,tup in Lmaxtups
+               ]
+              )
+    
+  print('PartII:  {0}'.format(partII))
