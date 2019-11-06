@@ -131,7 +131,7 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   st_subsets = set()                     ### Initialize set to hold sets
 
-  if do_debug: sys.stdout.flush()
+  if do_log23: sys.stdout.flush()
 
   Lmx = 0             ### Keep track of size of maximum set found so far
 
@@ -156,12 +156,12 @@ if "__main__" == __name__ and sys.argv[1:]:
       st_subsets.add(tuple(sorted(st)))
       #st_subsets.add((Lmx,tuple(sorted(st)),))
 
-    if do_debug:                            ### Show progress while slow
+    if do_log23:                            ### Show progress while slow
       if ((oh.idx+1)%100): continue
       sys.stderr.write('{0}...'.format(oh.idx+1))
       sys.stderr.flush()
 
-  if do_debug:                              ### Complete progress output
+  if do_log23:                              ### Complete progress output
     sys.stderr.write('done\n')
     sys.stderr.flush()
 
