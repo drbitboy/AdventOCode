@@ -1,3 +1,9 @@
+"""
+Although this gives what adventofcode.com considers a correct answer for
+Part II, I am not convinced it is correct in the general case; it was
+more intuition than anything that led me to the algorithm coded here
+
+"""
 import re
 import os
 import sys
@@ -96,6 +102,11 @@ either to vector; use OH().xyz (center) if ohvin is an OH
 ########################################################################
 if "__main__" == __name__ and sys.argv[1:]:
 
+
+  ######################################################################
+  ### ETL (Extract, Transform, Load) i.e. parse the input file with
+  ### filename sys.argv[1]
+
   ohs = list()                                    ### Create list of OHs
   with open(sys.argv[1],'r') as fin:           ### Open file for reading
     ohline = 0                         ### Initialze line offset to zero
@@ -103,6 +114,10 @@ if "__main__" == __name__ and sys.argv[1:]:
       t4 = eval('({0},)'.format(re.sub("[^-\d,]","",s)))  ### Parse line
       ohs.append(OH(t4,ohline))  ### Make OH w/parsed tuple, add to list
       ohline += 1                              ### Increment line offset
+
+
+  ######################################################################
+  ### Start Part I
 
   ohs.sort(key=lambda loh:-loh.r)     ### Sort by decreasing (MD) radius
 
@@ -121,30 +136,33 @@ if "__main__" == __name__ and sys.argv[1:]:
 
   print('PartI:  {0}'.format(botcount))                ### Part I result
 
+  ### End Part I
   ######################################################################
   ######################################################################
+  ### Start Part II
 
   for oh in ohs:                 ### Find all OHs that intersect each OH
     for oh2 in ohs:
       if oh is oh2 or oh.ohintersect(oh2):
         oh.intersecting_ohs.add(oh2.idx)  ### Save intersecting OH index
 
-  st_subsets = set()                     ### Initialize set to hold sets
+  st_subsets = set()  ### Initialize set; will contain subsets as tuples
 
   if do_log23: sys.stdout.flush()
 
   Lmx = 0             ### Keep track of size of maximum set found so far
 
   ### From the problem statement, this is the maximum number of nanobots
-  ### found so far that are in range of at least one positon
+  ### found so far that are in range of at least one position
 
-  for oh in ohs:                                  ### For each OH in ohs
+  for oh in ohs:                              ### For each OH in ohs ...
 
     st = oh.intersecting_ohs    ### Get set of intersecting OHs' indices
 
     for idx in st:                         ### For each one of those ...
 
-      ### ... remove any that do not intersect with all others
+      ### ... remove any from oh.intersecting_ohs that don't intersect
+      ### with its OH, i.e. with ohs[idx]
 
       st = st.intersection(ohs[idx].intersecting_ohs)
 
@@ -154,9 +172,8 @@ if "__main__" == __name__ and sys.argv[1:]:
     if len(st) >= Lmx:       ### Add this OH's set if size is max so far
       Lmx = len(st)
       st_subsets.add(tuple(sorted(st)))
-      #st_subsets.add((Lmx,tuple(sorted(st)),))
 
-    if do_log23:                            ### Show progress while slow
+    if do_log23:                 ### Show occasional progress while busy
       if ((oh.idx+1)%100): continue
       sys.stderr.write('{0}...'.format(oh.idx+1))
       sys.stderr.flush()
@@ -168,6 +185,10 @@ if "__main__" == __name__ and sys.argv[1:]:
   ######################################################################
   ### At this point, st_subsets contains tuples, each of which contains
   ### the indices (into ohs) of OHs that mutually intersect one another
+  ###
+  ### N.B. although this is a list and the code is designed to handle
+  ###      multiple subsets with the same length, in practice there is
+  ###      only one tuple in the list for the input data provided
 
   Lmxtups = [t                               ### Select those tuples ...
              for t in st_subsets             ### ... from st_subsets ...
@@ -178,6 +199,8 @@ if "__main__" == __name__ and sys.argv[1:]:
   ### range of the largest number of nanobots. What is the shortest
   ### manhattan distance between any of those points and 0,0,0?"
 
+  ### N.B. this next bit is what I am unsure is general (but it may be):
+  ###
   ### For each of those tuples with the maximum number of OH indices,
   ### calculate the maximum manhattan distance from the origin
   ### (OH.vzero) to the surface of any OH in that tuple, and use the
@@ -190,5 +213,5 @@ if "__main__" == __name__ and sys.argv[1:]:
                 for tup in Lmxtups
                ]
               )
-    
+
   print('PartII:  {0}'.format(partII > 0 and partII or 0))
