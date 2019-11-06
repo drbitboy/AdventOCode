@@ -8,136 +8,187 @@ do_log23 = "LOG23" in os.environ
 
 
 class OH(object):
-  """Octahedron, center and vertices"""
+  """Octahedron (OH), i.e. sphere with Manhattan Distance (MD) radius.
 
-  vzero = (0,)*3
+For solving Advent of Code, 2018 day 23
 
-  def __repr__(self): return 'OH({0},{1})'.format(self.idx,self.orig_idx)
+"""
 
+  vzero = (0,)*3            ### Zero vector
+
+
+  ####################################
+  def __repr__(self):
+    """Use indices for output"""
+
+    return 'OH({0},{1})'.format(self.idx,self.orig_idx)
+
+
+  ####################################
   def __init__(self,tup4,orig_idx):
+    """Constructor:  tup4 = (Xcenter, Ycenter, Zcenter, Radius,);
+orig_idx = index for use by the user.
+
+"""
+
+    ### Save the original index (offset to line in file)
+    ### Set the other index to -1; it will be sort position
 
     self.orig_idx = orig_idx
     self.idx = -1
-    self.xyz = tup4[:3]
-    self.r = (4==len(tup4)) and tup4[3] or 0 
 
-    if 0==self.r:
-      self.verts = [self.xyz] * 6
-      return
+    ### Coordinates of vector from origin to center
+    ### Radius (manhattan distance) to edge of range
 
-    self.verts = list()
-    for i in range(6):
-      isplus = not ((i&1) and True or False)
-      ixyzbit = i & 6
-      vertidx=0
-      while ixyzbit > 1:
-        ixyzbit >>= 1
-        vertidx += 1
-      self.verts.append(vadd(self,idx=vertidx,offset=(isplus and self.r or -self.r)))
+    self.x,self.y,self.z = self.xyz = tup4[:3]
+    self.r = (4==len(tup4)) and tup4[3] or 0
+
+    ### Create a set for OHs that intersect this one
 
     self.intersecting_ohs = set()
 
+
+  ##################################
   def md(self,ohv):
-    """Manhattan distance"""
+    """Manhattan distance relative to """
     v = ohv2v(ohv)
-    return (abs(self.xyz[0]-v[0])
-           +abs(self.xyz[1]-v[1])
-           +abs(self.xyz[2]-v[2])
+    return (abs(self.x-v[0])
+           +abs(self.y-v[1])
+           +abs(self.z-v[2])
            )
 
+
+  ##################################
   def ohintersect(self,ohother):
+    """Return True if other OH intersects this OH at any point"""
     return self.mdinside(ohother.xyz,deltar=ohother.r)
 
+
+  ##################################
   def mdinside(self,ohv,deltar=False):
+    """Return True if ohv (OH or vector) is within Manhattan distance of
+(self.r + deltar) of self.xyz
+
+"""
     v = ohv2v(ohv)
-    result = abs(self.xyz[0] - v[0])
+    result = abs(self.x - v[0])
     r = self.r + (deltar and deltar or 0)
     if result > r: return False
-    result += abs(self.xyz[1] - v[1])
+    result += abs(self.y - v[1])
     if result > r: return False
-    result += abs(self.xyz[2] - v[2])
+    result += abs(self.z - v[2])
     return (result <= r)
 
+
+########################################################################
 def ohv2v(ohvin):
-  if isinstance(ohvin,OH): return ohvin.xyz
-  return ohvin
+  """Argument ohvin may be either a vector or an OH instance; transform
+either to vector; use OH().xyz (center) if ohvin is an OH
 
-def vadd(ohv1,ohv2=OH.vzero,idx=-1,offset=0):
-  v1 = ohv2v(ohv1)
-  v2 = ohv2v(ohv2)
-  return ((v1[0]+v2[0] + (idx==0 and offset or 0))
-         ,(v1[1]+v2[1] + (idx==1 and offset or 0))
-         ,(v1[2]+v2[2] + (idx==2 and offset or 0))
-         )
+"""
+  if isinstance(ohvin,OH): return ohvin.xyz  ### Use OH center
+  return ohvin                               ### Assume ohvin is vector
 
-####################################
+  ### End of OH class
+  ######################################################################
+
+
+########################################################################
 if "__main__" == __name__ and sys.argv[1:]:
 
-  ohs = list()
-  with open(sys.argv[1],'r') as fin:
-    ohline = 0
-    for s in fin:
-      tup4 = eval('({0},)'.format(re.sub("[^-\d,]","",s)))
-      ohs.append(OH(tup4,ohline))
-      ohline += 1
+  ohs = list()                                    ### Create list of OHs
+  with open(sys.argv[1],'r') as fin:           ### Open file for reading
+    ohline = 0                         ### Initialze line offset to zero
+    for s in fin:                                    ### Loop over lines
+      t4 = eval('({0},)'.format(re.sub("[^-\d,]","",s)))  ### Parse line
+      ohs.append(OH(t4,ohline))  ### Make OH w/parsed tuple, add to list
+      ohline += 1                              ### Increment line offset
 
-  L = len(ohs)
+  ohs.sort(key=lambda loh:-loh.r)     ### Sort by decreasing (MD) radius
 
-  def keyr(oh): return oh.r
+  for idx,oh in enumerate(ohs): oh.idx = idx     ### Load sorted indices
 
-  ohs.sort(key=keyr)
-
-  for idx,oh in enumerate(ohs): oh.idx = idx
-
-  oh_maxr = ohs[-1]
+  oh_maxr = ohs[0]                           ### OH with maximum radius
 
   print(oh_maxr.__dict__)
 
   maxr = oh_maxr.r
   for oh in ohs:
-    assert oh_maxr==oh or maxr>oh.r
+    assert oh_maxr==oh or maxr>oh.r     ### Ensure there is 1 max radius
 
-  botcount = 0
-  for oh in ohs:
-    if oh_maxr.mdinside(oh): botcount += 1
+  botcount = len([None                      ### Count OHs inside oh_maxr
+                  for oh in ohs
+                  if oh_maxr.mdinside(oh)
+                 ])
 
-  print('PartI:  {0}'.format(botcount))
+  print('PartI:  {0}'.format(botcount))                ### Part I result
 
-  for oh in ohs:
-    for i,oh2 in enumerate(ohs):
-      if oh.ohintersect(oh2):
-        oh.intersecting_ohs.add(i)
+  ######################################################################
+  ######################################################################
 
-  lens = [(len(oh.intersecting_ohs),oh,oh.intersecting_ohs,) for i,oh in enumerate(ohs)]
-  
-  st_subsets = set()
+  for oh in ohs:                 ### Find all OHs that intersect each OH
+    for oh2 in ohs:
+      if oh is oh2 or oh.ohintersect(oh2):
+        oh.intersecting_ohs.add(oh2.idx)  ### Save intersecting OH index
+
+  st_subsets = set()                     ### Initialize set to hold sets
 
   sys.stdout.flush()
 
-  for ioh,oh in enumerate(ohs):
-    st = oh.intersecting_ohs
-    for idx in st:
+  Lmx = 0             ### Keep track of size of maximum set found so far
+
+  ### From the problem statement, this is the maximum number of nanobots
+  ### found so far that are in range of at least one positon
+
+  for oh in ohs:                                  ### For each OH in ohs
+
+    st = oh.intersecting_ohs    ### Get set of intersecting OHs' indices
+
+    for idx in st:                         ### For each one of those ...
+
+      ### ... remove any that do not intersect with all others
+
       st = st.intersection(ohs[idx].intersecting_ohs)
-      if not len(st): break
-    if len(st): st_subsets.add((len(st),tuple(sorted(st)),))
-    if ((ioh+1)%100): continue
-    sys.stderr.write('{0}...'.format(ioh+1))
+
+      if len(st) < Lmx:    ### Ignore this OH if set size goes below max
+        break
+
+    if len(st) >= Lmx:      ### Add this OH's set if size is max so far
+      Lmx = len(st)
+      st_subsets.add(tuple(sorted(st)))
+      #st_subsets.add((Lmx,tuple(sorted(st)),))
+
+    if ((oh.idx+1)%100): continue           ### Show progress while slow
+    sys.stderr.write('{0}...'.format(oh.idx+1))
     sys.stderr.flush()
 
-  sys.stderr.write('done\n')
+  sys.stderr.write('done\n')                ### Complete progress output
   sys.stderr.flush()
 
-  Ltups = sorted(st_subsets)
-  Lmax = Ltups[-1][0]
-  Lmaxtups = list()
-  while Ltups and Ltups[-1][0] == Lmax: Lmaxtups.append(Ltups.pop())
+  ######################################################################
+  ### At this point, st_subsets contains tuples, each of which contains
+  ### the indices (into ohs) of OHs that mutually intersect one another
+
+  Lmxtups = [t                               ### Select those tuples ...
+             for t in st_subsets             ### ... from st_subsets ...
+             if len(t)==Lmx               ### ... that are of length Lmx
+            ]
+
+  ### From the problem statement, "Find the coordinates that are in
+  ### range of the largest number of nanobots. What is the shortest
+  ### manhattan distance between any of those points and 0,0,0?"
+
+  ### For each of those tuples with the maximum number of OH indices,
+  ### calculate the maximum manhattan distance from the origin
+  ### (OH.vzero) to the surface of any OH in that tuple, and use the
+  ### minimum of those calculated maxima as the answer for Part II
 
   partII = min([max([ ohs[idx].md(OH.vzero)-ohs[idx].r
                       for idx in tup
                     ]
                    )
-                for L,tup in Lmaxtups
+                for tup in Lmxtups
                ]
               )
     
-  print('PartII:  {0}'.format(partII))
+  print('PartII:  {0}'.format(partII > 0 and partII or 0))
