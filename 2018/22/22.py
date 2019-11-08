@@ -34,6 +34,10 @@ except:
   torch,climbing,neither = s_ets = 'torch climbing neither'.split()
 
   ### - Acceptable equipment within each region type
+  ###   - rocky:  allows torch and climbing gear
+  ###   - wet:  allows climbing gear and neither
+  ###   - narrow:  allows neither and torch
+
   rt2et = [(i,(i+1)%el_mod,) for i in range(el_mod)]
 
   ### - Regions to which equipment can move
@@ -90,7 +94,7 @@ class Rnode(object):
     assert et in rt2et[r.rt]
     self.r,self.et = r,et
     self.dist = Rnode.INFINITY
-    self.conn = set()
+    self.st_cn = set()
 
     self.hash = (self.r.y << y_shift
             ) | (self.r.x << x_shift
@@ -114,7 +118,7 @@ class Rnode(object):
 
       if self.et != otherRnode.et:  ### ... only connect to different et
 
-        self.conn.add((otherRnode,et_cost))
+        self.st_cn.add((otherRnode,et_cost))
 
       else: return        ### No valid connection; short-circuit reverse
 
@@ -123,7 +127,7 @@ class Rnode(object):
       if self.et == otherRnode.et:  ### ... only connect to same et
 
 
-        self.conn.add((otherRnode,step_cost))
+        self.st_cn.add((otherRnode,step_cost))
 
       else: return        ### No valid connection; short-circuit reverse
 
@@ -255,6 +259,8 @@ Convert number to bit-width and mask
 
       ### Add instantiated Rnode object to sorted list Q
 
+      Q.add(rnode)
+
 
     ### For the rnodes just instantiated and stored in result.rnodes ...
     for rnode in result.rnodes:
@@ -283,10 +289,21 @@ Convert number to bit-width and mask
   ######################################################################
   ### Setup complete, start algorithm
 
+  ### Globals
+
   gielrts = dict()
   Q = sortedlist([],key=lambda r:r.dist_key())
 
+  ### Instantiate R and Rnode objects
+  ### - Add Rs as padding beyond target XY coordinates, in case it is
+  ###   faster to go beyond those limits to get to target.  35 is a
+  ###   guess works for the author; values as low as 17 gave the same
+  ###   answer.
+
   need(xtarget+35,ytarget+35)
+
+  ### Part I:  calculate risk level;, sum of erosion levels between
+  ###          origin and target
 
   rsklvl = 0
   for y in sorted(gielrts.keys()):
@@ -300,8 +317,50 @@ Convert number to bit-width and mask
 
   print('PartI:  {0}'.format(rsklvl))
 
-  def decrease_distance(rnode,new_dist):
+  ### End Part I
+  ######################################################################
+
+  def decrease_dist(rnode,new_dist):
+    """Change distance of Rnode object in sorted list Q, while
+maintining correct position within Q
+"""
     global Q
-    Q.remove(rnode)
-    rnode.dist = new_dist
-    Q.add(rnode)
+    Q.remove(rnode)         ### Delete from Q
+    rnode.dist = new_dist   ### Adjust distance
+    Q.add(rnode)            ### Add back to Q
+
+  ### Djikstra's Algorithm
+  ### cf. https://en.wikipedia.org/wiki/Dijkstra's_algorithm
+
+  ### Find Rnode starting point:  x=0; y=0; s_et=torch
+
+  rsource = gielrts[0][0]
+
+  for rnode in rsource.rnodes:
+    if s_ets[rnode.et] == torch: break
+
+  assert s_ets[rnode.et] == torch or dict()[s_ets[rnode.et]]
+  assert rnode.dist == Rnode.INFINITY or dict()[rnode.dist]
+
+  ### Set that Rnode's distance to zero
+
+  decrease_dist(rnode,0)
+
+  while len(Q):
+
+    u_rnode = Q.pop()  ### Remove u, vertex with min dist in Q
+
+    ### Exit loop when X,Y target is reached and torch is equipped
+    if u_rnode.r is gielrts[ytarget][xtarget]:
+      if s_ets[u_rnode.et] == torch:  break
+
+    distu = u_rnode.dist
+
+    for v_conn,v_len in u_rnode.st_cn:   ### For each neighbor of v of u
+      if v_conn.dist <= distu: continue  ### - skip v not in Q
+      alt = distu + v_len                ### Min distance to v through u
+      if alt < v_conn.dist:              ### If this improves dist to v,
+        decrease_dist(v_conn,alt)        ### ... then decrease distance
+
+  
+  print('PartII:  {0}'.format(u_rnode.dist))
