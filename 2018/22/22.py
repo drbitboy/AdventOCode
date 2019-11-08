@@ -329,9 +329,6 @@ maintining correct position within Q
     rnode.dist = new_dist   ### Adjust distance
     Q.add(rnode)            ### Add back to Q
 
-  ### Djikstra's Algorithm
-  ### cf. https://en.wikipedia.org/wiki/Dijkstra's_algorithm
-
   ### Find Rnode starting point:  x=0; y=0; s_et=torch
 
   rsource = gielrts[0][0]
@@ -342,22 +339,29 @@ maintining correct position within Q
   assert s_ets[rnode.et] == torch or dict()[s_ets[rnode.et]]
   assert rnode.dist == Rnode.INFINITY or dict()[rnode.dist]
 
-  ### Set that Rnode's distance to zero
+  ##################################
+  ### Djikstra's Algorithm
+  ### cf. https://en.wikipedia.org/wiki/Dijkstra's_algorithm
+  ##################################
+
+  ### Set the source Rnode's distance to zero, including re-positioning
+  ### it within sortedlist Q
 
   decrease_dist(rnode,0)
 
-  while len(Q):
+  while len(Q):                                ### Loop over Rnodes in Q
 
-    u_rnode = Q.pop()  ### Remove u, vertex with min dist in Q
+    u_rnode = Q.pop()         ### Remove u, vertex with min dist, from Q
 
-    ### Exit loop when X,Y target is reached and torch is equipped
-    if u_rnode.r is gielrts[ytarget][xtarget]:
-      if s_ets[u_rnode.et] == torch:  break
+
+    if u_rnode.r is gielrts[ytarget][xtarget]:   ### If X,Y target hit,
+      if s_ets[u_rnode.et] == torch:             ### and torch equipped,
+        break                                    ### then exit loop
 
     distu = u_rnode.dist
 
     for v_conn,v_len in u_rnode.st_cn:   ### For each neighbor of v of u
-      if v_conn.dist <= distu: continue  ### - skip v not in Q
+      if v_conn.dist <= distu: continue  ### - skip v if not in Q
       alt = distu + v_len                ### Min distance to v through u
       if alt < v_conn.dist:              ### If this improves dist to v,
         decrease_dist(v_conn,alt)        ### ... then decrease distance
