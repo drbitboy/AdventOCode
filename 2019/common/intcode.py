@@ -10,7 +10,7 @@ class INTCODE(object):
     with open(fn) as fin:
       self.lt_ints = list(map(int,fin.readline().strip().split(',')))
 
-  def run(self,lt_inputs_arg):
+  def run(self,lt_inputs_arg=[]):
     instance = INSTANCE(self)
     instance.add_input_data(*lt_inputs_arg)
     instance.run()
@@ -23,6 +23,10 @@ class INSTANCE(object):
   FINI = 99
   READWAIT = 3
   INIT = -1
+
+  POSITION_MODE  = 0
+  IMMEDIATE_MODE = 1
+  RELATIVE_MODE  = 2
 
   def __init__(self,intcode,lt_inputs_arg=None):
     self.vm = [i for i in intcode.lt_ints]
@@ -49,9 +53,10 @@ class INSTANCE(object):
 
   def getnext(self
              ,param_mode
+             ,no_parse_opcode=True
              ,vmarg=None
              ,iparg=None
-             ,no_parse_opcode=True
+             ,allow_exception=True
              ):
 
     if vmarg is None: vm = self.vm
@@ -60,13 +65,30 @@ class INSTANCE(object):
     if iparg is None: ip = self.ip
     else            : ip = iparg
 
-    val = vm[ip]
+    try: val = vm[ip]
+    except:
+      print(dict(ip=ip,len_vm=len(vm)))
+      raise
 
     if no_parse_opcode:
-      if 0==param_mode  : val = vm[val]
-      elif 2==param_mode: val = vm[val+self.relative_base]
-      else              : assert 1==param_mode
-      return val,ip+1
+      try:
+        if INSTANCE.POSITION_MODE==param_mode  : val = vm[val]
+        elif INSTANCE.RELATIVE_MODE==param_mode: val = vm[val+self.relative_base]
+        else                                   : assert INSTANCE.IMMEDIATE_MODE==param_mode
+        return val,ip+1
+      except:
+        assert allow_exception
+        assert vm is self.vm
+        assert INSTANCE.POSITION_MODE==param_mode or INSTANCE.RELATIVE_MODE==param_mode
+        target_idx = val + (INSTANCE.RELATIVE_MODE==param_mode and self.relative_base or 0)
+        assert len(vm) <= target_idx
+        self.assign_vm_element(target_idx,0)
+        return self.getnext(param_mode
+                           ,no_parse_opcode=no_parse_opcode
+                           ,vmarg=vmarg
+                           ,iparg=iparg
+                           ,allow_exception=False
+                           )
 
     opcode = val % 100
     param1 = ((val - opcode) / 100) % 10
@@ -75,6 +97,15 @@ class INSTANCE(object):
     param4 = ((val - (opcode + (100*param1) + (1000*param2) + (10000*param3))) / 100000) % 10
 
     return val,opcode,ip+1,param1,param2,param3,param4
+
+
+  def assign_vm_element(self,dest_idx,val,allow_exception=True):
+    try: self.vm[dest_idx] = val
+    except:
+      assert allow_exception
+      assert len(self.vm) <= dest_idx
+      self.vm += [0] * (1+dest_idx - len(self.vm))
+      self.assign_vm_element(dest_idx,val,allow_exception=False)
 
 
   def run(self):
@@ -96,13 +127,15 @@ class INSTANCE(object):
         left,self.ip = self.getnext(p1)
         right,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        self.vm[dest_idx] = left + right
+        #self.vm[dest_idx] = left + right
+        self.assign_vm_element(dest_idx,left + right)
 
       elif 2==opcode:                        ### Multiply
         left,self.ip = self.getnext(p1)
         right,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        self.vm[dest_idx] = left * right
+        #self.vm[dest_idx] = left * right
+        self.assign_vm_element(dest_idx,left * right)
 
       elif 3==opcode:                        ### Take one input
 
@@ -111,9 +144,12 @@ class INSTANCE(object):
           self.state = INSTANCE.READWAIT
           return
 
-        input_val,self.input_ptr = self.getnext(1,self.inputs,self.input_ptr)
         dest_idx,self.ip = self.getnext(1)
-        self.vm[dest_idx] = input_val
+        if INSTANCE.RELATIVE_MODE==p1: dest_idx += self.relative_base
+
+        input_val,self.input_ptr = self.getnext(1,vmarg=self.inputs,iparg=self.input_ptr)
+        self.assign_vm_element(dest_idx,input_val)
+        #self.vm[dest_idx] = input_val
 
       elif 4==opcode:                        ### Write one output
         val1,self.ip = self.getnext(p1)
@@ -133,16 +169,22 @@ class INSTANCE(object):
         val1,self.ip = self.getnext(p1)
         val2,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        self.vm[dest_idx] = val1 < val2 and 1 or 0
+        #self.vm[dest_idx] = val1 < val2 and 1 or 0
+        self.assign_vm_element(dest_idx,val1 < val2 and 1 or 0)
 
       elif 8==opcode:                        ### Equals
         val1,self.ip = self.getnext(p1)
         val2,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        self.vm[dest_idx] = val1 == val2 and 1 or 0
+        #self.vm[dest_idx] = val1 == val2 and 1 or 0
+        self.assign_vm_element(dest_idx,val1 == val2 and 1 or 0)
+
+      elif 9==opcode:                        ### Adjust the relative base
+        val1,self.ip = self.getnext(p1)
+        self.relative_base += val1
 
       else:
-        assert False,'Bad opcode[{0}] (raw={1}) as IP={2}'.format(opcode,raw_opcode,self.ip)
+        assert False,'Bad opcode[{0}] (raw={1}) at IP={2}'.format(opcode,raw_opcode,self.ip)
 
 
 if "__main__"==__name__:
