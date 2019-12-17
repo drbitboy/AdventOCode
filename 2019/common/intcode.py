@@ -130,7 +130,7 @@ class INSTANCE(object):
         if 0 == val1: self.ip = jumpip
 
       elif 7==opcode:                        ### Less than
-        val1,self.ip = self.getnext(p1,self.vm,self.ip1)
+        val1,self.ip = self.getnext(p1,self.vm,self.ip)
         val2,self.ip = self.getnext(p2,self.vm,self.ip)
         dest_idx,self.ip = self.getnext(1,self.vm,self.ip)
         self.vm[dest_idx] = val1 < val2 and 1 or 0
