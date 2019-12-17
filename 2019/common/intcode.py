@@ -2,23 +2,7 @@ import os
 import sys
 
 
-def getnext(vmarg,iparg,param_mode,no_parse_opcode=True):
-
-  val = vmarg[iparg]
-
-  if no_parse_opcode:
-    if 0==param_mode: val = vmarg[val]
-    return val,iparg+1
-
-  opcode = val % 100
-  param1 = ((val - opcode) / 100) % 10
-  param2 = ((val - (opcode + (100*param1))) / 1000) % 10
-  param3 = ((val - (opcode + (100*param1) + (1000*param2))) / 10000) % 10
-  param4 = ((val - (opcode + (100*param1) + (1000*param2) + (10000*param3))) / 100000) % 10
-
-  return val,opcode,iparg+1,param1,param2,param3,param4
-
-
+########################################################################
 class INTCODE(object):
 
   def __init__(self,fn):
@@ -48,6 +32,7 @@ class INSTANCE(object):
     else                             : self.inputs = list()
     self.outputs = list()
     self.state = INSTANCE.INIT
+    self.relative_base = 0
 
   def make_cascade(self,downstream_instance):
     assert self.state == INSTANCE.INIT
@@ -61,6 +46,37 @@ class INSTANCE(object):
     assert not self.input_ptr
     self.inputs.extend(inputs)
 
+
+  def getnext(self
+             ,param_mode
+             ,vmarg=None
+             ,iparg=None
+             ,no_parse_opcode=True
+             ):
+
+    if vmarg is None: vm = self.vm
+    else            : vm = vmarg
+
+    if iparg is None: ip = self.ip
+    else            : ip = iparg
+
+    val = vm[ip]
+
+    if no_parse_opcode:
+      if 0==param_mode  : val = vm[val]
+      elif 2==param_mode: val = vm[val+self.relative_base]
+      else              : assert 1==param_mode
+      return val,ip+1
+
+    opcode = val % 100
+    param1 = ((val - opcode) / 100) % 10
+    param2 = ((val - (opcode + (100*param1))) / 1000) % 10
+    param3 = ((val - (opcode + (100*param1) + (1000*param2))) / 10000) % 10
+    param4 = ((val - (opcode + (100*param1) + (1000*param2) + (10000*param3))) / 100000) % 10
+
+    return val,opcode,ip+1,param1,param2,param3,param4
+
+
   def run(self):
 
     if self.state == INSTANCE.FINI: return
@@ -69,7 +85,7 @@ class INSTANCE(object):
 
       save_ip = self.ip
 
-      raw_opcode,opcode,self.ip,p1,p2,p3,p4 = getnext(self.vm,self.ip,1,no_parse_opcode=False)
+      raw_opcode,opcode,self.ip,p1,p2,p3,p4 = self.getnext(1,self.vm,self.ip,no_parse_opcode=False)
 
       if 99==opcode:                         ### Halt
         self.ip = save_ip
@@ -77,15 +93,15 @@ class INSTANCE(object):
         return
 
       elif 1==opcode:                        ### Add
-        left,self.ip = getnext(self.vm,self.ip,p1)
-        right,self.ip = getnext(self.vm,self.ip,p2)
-        dest_idx,self.ip = getnext(self.vm,self.ip,1)
+        left,self.ip = self.getnext(p1,self.vm,self.ip)
+        right,self.ip = self.getnext(p2,self.vm,self.ip)
+        dest_idx,self.ip = self.getnext(1,self.vm,self.ip)
         self.vm[dest_idx] = left + right
 
       elif 2==opcode:                        ### Multiply
-        left,self.ip = getnext(self.vm,self.ip,p1)
-        right,self.ip = getnext(self.vm,self.ip,p2)
-        dest_idx,self.ip = getnext(self.vm,self.ip,1)
+        left,self.ip = self.getnext(p1,self.vm,self.ip)
+        right,self.ip = self.getnext(p2,self.vm,self.ip)
+        dest_idx,self.ip = self.getnext(1,self.vm,self.ip)
         self.vm[dest_idx] = left * right
 
       elif 3==opcode:                        ### Take one input
@@ -95,34 +111,34 @@ class INSTANCE(object):
           self.state = INSTANCE.READWAIT
           return
 
-        input_val,self.input_ptr = getnext(self.inputs,self.input_ptr,1)
-        dest_idx,self.ip = getnext(self.vm,self.ip,1)
+        input_val,self.input_ptr = self.getnext(1,self.inputs,self.input_ptr)
+        dest_idx,self.ip = self.getnext(1,self.vm,self.ip)
         self.vm[dest_idx] = input_val
 
       elif 4==opcode:                        ### Write one output
-        val1,self.ip = getnext(self.vm,self.ip,p1)
+        val1,self.ip = self.getnext(p1,self.vm,self.ip)
         self.outputs.append(val1)
 
       elif 5==opcode:                        ### Jump if True
-        val1,self.ip = getnext(self.vm,self.ip,p1)
-        jumpip,self.ip = getnext(self.vm,self.ip,p2)
+        val1,self.ip = self.getnext(p1,self.vm,self.ip)
+        jumpip,self.ip = self.getnext(p2,self.vm,self.ip)
         if 0 != val1: self.ip = jumpip
 
       elif 6==opcode:                        ### Jump if False
-        val1,self.ip = getnext(self.vm,self.ip,p1)
-        jumpip,self.ip = getnext(self.vm,self.ip,p2)
+        val1,self.ip = self.getnext(p1,self.vm,self.ip)
+        jumpip,self.ip = self.getnext(p2,self.vm,self.ip)
         if 0 == val1: self.ip = jumpip
 
       elif 7==opcode:                        ### Less than
-        val1,self.ip = getnext(self.vm,self.ip,p1)
-        val2,self.ip = getnext(self.vm,self.ip,p2)
-        dest_idx,self.ip = getnext(self.vm,self.ip,1)
+        val1,self.ip = self.getnext(p1,self.vm,self.ip1)
+        val2,self.ip = self.getnext(p2,self.vm,self.ip)
+        dest_idx,self.ip = self.getnext(1,self.vm,self.ip)
         self.vm[dest_idx] = val1 < val2 and 1 or 0
 
       elif 8==opcode:                        ### Equals
-        val1,self.ip = getnext(self.vm,self.ip,p1)
-        val2,self.ip = getnext(self.vm,self.ip,p2)
-        dest_idx,self.ip = getnext(self.vm,self.ip,1)
+        val1,self.ip = self.getnext(p1,self.vm,self.ip)
+        val2,self.ip = self.getnext(p2,self.vm,self.ip)
+        dest_idx,self.ip = self.getnext(1,self.vm,self.ip)
         self.vm[dest_idx] = val1 == val2 and 1 or 0
 
       else:
