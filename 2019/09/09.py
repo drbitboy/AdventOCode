@@ -13,3 +13,7 @@ if "__main__" == __name__:
   if not bn.startswith('sample_input_part2_'):
     instance = icode.run([1])
     print((instance.inputs,instance.input_ptr,instance.outputs,))
+
+  if not bn.startswith('sample_input_part1_'):
+    instance = icode.run([2])
+    print((instance.inputs,instance.input_ptr,instance.outputs,))

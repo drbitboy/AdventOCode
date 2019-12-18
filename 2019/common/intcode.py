@@ -1,6 +1,7 @@
 import os
 import sys
 
+do_debug = 'DEBUG' in os.environ
 
 ########################################################################
 class INTCODE(object):
@@ -70,11 +71,23 @@ class INSTANCE(object):
       print(dict(ip=ip,len_vm=len(vm)))
       raise
 
+    if do_debug:
+      print('getnext({0},no_parse_opcode={1},vmarg={2},iparg={3},allow_exception={4})'
+           .format(param_mode
+                  ,no_parse_opcode
+                  ,vmarg
+                  ,iparg
+                  ,allow_exception
+                  )
+           )
+
     if no_parse_opcode:
       try:
         if INSTANCE.POSITION_MODE==param_mode  : val = vm[val]
         elif INSTANCE.RELATIVE_MODE==param_mode: val = vm[val+self.relative_base]
         else                                   : assert INSTANCE.IMMEDIATE_MODE==param_mode
+        if do_debug:
+          print('  -> returning {0}'.format((val,ip+1,)))
         return val,ip+1
       except:
         assert allow_exception
@@ -96,11 +109,15 @@ class INSTANCE(object):
     param3 = ((val - (opcode + (100*param1) + (1000*param2))) / 10000) % 10
     param4 = ((val - (opcode + (100*param1) + (1000*param2) + (10000*param3))) / 100000) % 10
 
+    if do_debug:
+      print('  -> returning {0}'.format((val,opcode,ip+1,param1,param2,param3,param4,)))
     return val,opcode,ip+1,param1,param2,param3,param4
 
 
   def assign_vm_element(self,dest_idx,val,allow_exception=True):
-    try: self.vm[dest_idx] = val
+    try:
+      self.vm[dest_idx] = val
+      if do_debug: print('Assigned self.vm[{0}]<-{1}'.format(dest_idx,val))
     except:
       assert allow_exception
       assert len(self.vm) <= dest_idx
@@ -108,17 +125,32 @@ class INSTANCE(object):
       self.assign_vm_element(dest_idx,val,allow_exception=False)
 
 
+  def debug_print(self,save_ip):
+    if not do_debug: return
+    print('ip={0}; save_ip={1}; rel_base={2}; len(vm)={3}; outs={4}; lt_vals={5}'
+          .format(self.ip
+                 ,save_ip
+                 ,self.relative_base
+                 ,len(self.vm)
+                 ,self.outputs
+                 ,self.vm[save_ip:self.ip]
+                 )
+         )
+
   def run(self):
 
     if self.state == INSTANCE.FINI: return
 
     while True:
 
+      if do_debug: print('')
+
       save_ip = self.ip
 
       raw_opcode,opcode,self.ip,p1,p2,p3,p4 = self.getnext(1,no_parse_opcode=False)
 
       if 99==opcode:                         ### Halt
+        self.debug_print(save_ip)
         self.ip = save_ip
         self.state = INSTANCE.FINI
         return
@@ -126,61 +158,73 @@ class INSTANCE(object):
       elif 1==opcode:                        ### Add
         left,self.ip = self.getnext(p1)
         right,self.ip = self.getnext(p2)
-        dest_idx,self.ip = self.getnext(1)
-        #self.vm[dest_idx] = left + right
+        dest_idx,self.ip = self.getnext(INSTANCE.IMMEDIATE_MODE)
+        if INSTANCE.RELATIVE_MODE==p3: dest_idx += self.relative_base
+        self.debug_print(save_ip)
         self.assign_vm_element(dest_idx,left + right)
 
       elif 2==opcode:                        ### Multiply
         left,self.ip = self.getnext(p1)
         right,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        #self.vm[dest_idx] = left * right
+        if INSTANCE.RELATIVE_MODE==p3: dest_idx += self.relative_base
+        self.debug_print(save_ip)
         self.assign_vm_element(dest_idx,left * right)
 
       elif 3==opcode:                        ### Take one input
 
         if self.input_ptr >= len(self.inputs):
+          self.debug_print(save_ip)
           self.ip = save_ip
           self.state = INSTANCE.READWAIT
           return
 
-        dest_idx,self.ip = self.getnext(1)
+        dest_idx,self.ip = self.getnext(INSTANCE.IMMEDIATE_MODE)
         if INSTANCE.RELATIVE_MODE==p1: dest_idx += self.relative_base
 
-        input_val,self.input_ptr = self.getnext(1,vmarg=self.inputs,iparg=self.input_ptr)
+        input_val,self.input_ptr = self.getnext(INSTANCE.IMMEDIATE_MODE
+                                               ,vmarg=self.inputs
+                                               ,iparg=self.input_ptr
+                                               )
+        self.debug_print(save_ip)
         self.assign_vm_element(dest_idx,input_val)
-        #self.vm[dest_idx] = input_val
 
       elif 4==opcode:                        ### Write one output
         val1,self.ip = self.getnext(p1)
+        self.debug_print(save_ip)
         self.outputs.append(val1)
 
       elif 5==opcode:                        ### Jump if True
         val1,self.ip = self.getnext(p1)
         jumpip,self.ip = self.getnext(p2)
+        self.debug_print(save_ip)
         if 0 != val1: self.ip = jumpip
 
       elif 6==opcode:                        ### Jump if False
         val1,self.ip = self.getnext(p1)
         jumpip,self.ip = self.getnext(p2)
+        self.debug_print(save_ip)
         if 0 == val1: self.ip = jumpip
 
       elif 7==opcode:                        ### Less than
         val1,self.ip = self.getnext(p1)
         val2,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        #self.vm[dest_idx] = val1 < val2 and 1 or 0
+        if INSTANCE.RELATIVE_MODE==p3: dest_idx += self.relative_base
+        self.debug_print(save_ip)
         self.assign_vm_element(dest_idx,val1 < val2 and 1 or 0)
 
       elif 8==opcode:                        ### Equals
         val1,self.ip = self.getnext(p1)
         val2,self.ip = self.getnext(p2)
         dest_idx,self.ip = self.getnext(1)
-        #self.vm[dest_idx] = val1 == val2 and 1 or 0
+        if INSTANCE.RELATIVE_MODE==p3: dest_idx += self.relative_base
+        self.debug_print(save_ip)
         self.assign_vm_element(dest_idx,val1 == val2 and 1 or 0)
 
       elif 9==opcode:                        ### Adjust the relative base
         val1,self.ip = self.getnext(p1)
+        self.debug_print(save_ip)
         self.relative_base += val1
 
       else:
