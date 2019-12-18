@@ -45,12 +45,12 @@ class INSTANCE(object):
     assert not self.input_ptr
     self.outputs = downstream_instance.inputs
 
-  def add_input_data(self,*inputs):
-    assert self.state == INSTANCE.INIT
-    assert not self.ip
-    assert not self.input_ptr
+  def add_input_data(self,*inputs,**kwargs):
+    if (not ('state_must_be_init' in kwargs)) or kwargs['state_must_be_init']:
+      assert self.state == INSTANCE.INIT
+      assert not self.ip
+      assert not self.input_ptr
     self.inputs.extend(inputs)
-
 
   def getnext(self
              ,param_mode
