@@ -33,7 +33,7 @@ if "__main__" == __name__:
   with open('13.pickle','rb') as fin:
     result = pickle.load(fin)
     lt_outputs = result['lt_outputs']
-    dt_inputs = result['dt_inputs']
+    ###dt_inputs = result['dt_inputs']
 
   Lo = len(lt_outputs)
 
