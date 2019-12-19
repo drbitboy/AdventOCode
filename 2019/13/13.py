@@ -1,5 +1,6 @@
 import os
 import sys
+import pickle
 import intcode
 
 black = 0
@@ -28,8 +29,9 @@ def part2():
   """
   global icode
 
+  dt_i,dt_scores = dict(),dict()
   inputs = [0]
-  dt_i = dict()
+
   while True:
     ### Create an INTCODE INSTANCE, then run it
     instance = intcode.INSTANCE(icode,lt_inputs_arg=[])
@@ -55,6 +57,8 @@ def part2():
       instance.add_input_data(dt_i.get(Lo,0),state_must_be_init=False)
       instance.run()
 
+    print(('Endw',dict(state=instance.state),))
+
     Lo = len(instance.outputs)
 
     tail = instance.outputs[-600:]
@@ -72,15 +76,39 @@ def part2():
             adjust  += +1
             paddlex += -1
             dt_i[Lo+extra6] = -1
-          print(dict(adjust=adjust,paddlex=paddlex,Lo=Lo,Loplus=Lo+extra6,dtnew=dt_i[Lo+extra6]))
+          print(dict(adjust=adjust,paddlex=paddlex,paddley=paddley,Lo=Lo,Loplus=Lo+extra6,dtnew=dt_i[Lo+extra6]))
         elif paddley==y:
           adjust = x - paddlex
-          assert adjust
           extra6 = 6 * abs(adjust)
           print(dict(adjust=adjust,x=x,paddlex=paddlex,extra6=extra6))
+          sys.stdout.flush()
+          #assert adjust
       Lo -= 3
 
+    Lo = len(instance.outputs)
     print(('Fini',Lo,instance.outputs[Llast:],))
+
+    x,y,score = instance.outputs[-3:]
+    if -1==x and 0==y and score>0:
+      with open('13.pickle','wb') as fout:
+        pickle.dump(dict(lt_outputs=instance.outputs,dt_inputs=dt_i),fout)
+      break
+
+    Lo = len(instance.outputs)
+
+    score = 0
+    while (Lo>10000) and (not score):
+      x,y,typ = instance.outputs[Lo-3:Lo]
+      if (-1==x) and (0==y): score = typ
+      Lo -= 3
+
+    if score:
+      if score in dt_scores: dt_scores[score] += 1
+      else                 : dt_scores[score]  = 1
+      if score and (dt_scores[score] > 19):
+        dt_scores[score] = 0
+        paddley = 41 - paddley
+        print(('Score',dict(score=score,score_count=dt_scores[score],paddley=paddley),))
 
     assert intcode.INSTANCE.FINI==instance.state
 
