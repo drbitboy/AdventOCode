@@ -8,9 +8,7 @@ white = 1
 ########################################################################
 def run_11(start_color):
   """
-  Day 11 part 1:  amplifiers in series with phases and inputs,
-                 feedback last instance to first,
-                 one pass each
+  Day 11 part 1
  
   """
   global icode
@@ -57,16 +55,13 @@ def run_11(start_color):
   width = 1 + max(xwhites) - xmin
   height = 1 + max(ywhites) - ymin
   arr = [[' ']*width for i in range(height)]
-  print((width,height,xmin,ymin,))
-  print((len(arr[0]),len(arr),))
+  #print((width,height,xmin,ymin,))
+  #print((len(arr[0]),len(arr),))
   for x,y in st_whites:
-    print((x,y,))
+    #print((x,y,))
     arr[y-ymin][x-xmin] = '@'
   return len(st_painted_once),st_whites,'\n'.join([''.join(row) for row in arr])
 
-
-def run_11_part2():
-  pass
 
 ########################################################################
 
@@ -84,5 +79,3 @@ if "__main__" == __name__:
     count2,stwhites,s_arr = run_11(white)
     print(dict(part2=count2))
     print(s_arr)
-
-
