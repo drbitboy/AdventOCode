@@ -37,15 +37,38 @@ def part1(inputs,phases):
     lt_elements = [icalc(lt_elements,bpget(ioffset,L)) for ioffset in range(L)]
     if do_debug and not (phase%10): sys.stdout.write('.'); sys.stdout.flush()
   
-  return dict(result=Join16(lt_elements),L=L,phases=phases,inputs=inputs)
+  return dict(result8=Join16(lt_elements[:8]),result=Join16(lt_elements),L=L,phases=phases,inputs=inputs)
 
 
 ########################################################################
-def part2(inputs,phases):
+def part2(inputs,phases,Ndups=10000,Noffset_digits=7):
   """
   Day 15 part 2
 
   """
+  lt_elements = list(map(int,inputs))
+  phase,L = 0,len(lt_elements)
+  skip = int(Join16(lt_elements[:Noffset_digits]))
+  L10k = L * Ndups
+  remainder = L10k - skip
+  Rremainder = range(remainder)
+  assert remainder < (L10k>>1)
+  lt_tmp = list(map(int,inputs))
+  lt_tmp.reverse()
+  lt_elements_rev = [lt_tmp[i%L] for i in Rremainder]
+
+  print((len(lt_elements_rev),lt_elements_rev[:10],))
+
+  while phase < phases:
+    phase += 1
+    cumsum = 0
+    for i in Rremainder:
+      lt_elements_rev[i] += i and lt_elements_rev[i-1] or 0
+
+  lt_elements_8 = [v%10 for v in lt_elements_rev[-8:]]
+  lt_elements_8.reverse()
+
+  return dict(result8=Join16(lt_elements_8),L=L,phases=phases,inputs=inputs,Ndups=Ndups,remainder=remainder)
 
 
 ########################################################################
@@ -59,10 +82,11 @@ if "__main__" == __name__:
     s_lt_elements_0 = fin.readline().strip()
 
   if not bn.startswith('sample_input_part2_'):
-    phases = 'sample_input0.txt'==bn and 4 or 100
+    phases = 'sample_input_part1_0.txt'==bn and 4 or 100
     dt_part1_results = part1(s_lt_elements_0,phases)
     print(dict(part1=dt_part1_results))
 
   if not bn.startswith('sample_input_part1_'):
+    phases = bn.startswith('sample_input_part2_') and 100 or 100
     dt_part2_results = part2(s_lt_elements_0,phases)
     print(dict(part2=dt_part2_results))
