@@ -250,10 +250,11 @@ def part1(icode):
   """
   instance = intcode.INSTANCE(icode)
   instance.run()
-  print('\n=====\n{0}\n====='.format(''.join([chr(i)
-                                              for i in instance.outputs
-                                             ]).rstrip('\n')
-                                    ))
+  print('\n{1}\n{0}\n{1}'.format(''.join([chr(i)
+                                          for i in instance.outputs
+                                         ]).rstrip('\n')
+                                ,'='*72
+                                ))
 
 
 ########################################################################
