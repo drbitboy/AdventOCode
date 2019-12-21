@@ -170,19 +170,29 @@ def part2(icode):
   s_commands = ','.join(lt_commands)
 
   dt_fs = functions.functions
-  keys = list(dt_fs.keys())
+  keys = sorted(list(dt_fs.keys()))
   main_routine = s_commands
   for key in keys:
     s_value = dt_fs[key]
     assert 20 > len(s_value)
     main_routine = main_routine.replace(s_value,key)
-  main_routine 
-  rtn = dict(s_commands = s_commands
-            ,main_routine = main_routine
-            )
-  rtn .update(dt_fs)
 
-  return rtn
+  s_inputs = cnl.join([main_routine]+[dt_fs[key] for key in keys]+['n',''])
+  instance = intcode.INSTANCE(icode,lt_inputs_arg=[ord(s)
+                                                   for s in s_inputs
+                                                  ])
+  assert 1==instance.vm[0]
+  instance.vm[0] = 2
+  instance.run()
+
+  rtn = dict(s_commands=s_commands
+            ,main_routine=main_routine
+            ,Loutputs=len(instance.outputs)
+            ,lt_result=[v for v in instance.outputs if v < 0 or v > 127]
+            )
+  rtn.update(dt_fs)
+
+  return rtn,instance.outputs
 
 
 ########################################################################
@@ -211,5 +221,10 @@ if "__main__" == __name__:
     print(dict(part1=dt_part1_results))
 
   if not bn.startswith('sample_input_part1_'):
-    dt_part2_results = part2(icode)
+    dt_part2_results,outputs = part2(icode)
+    print('='*72)
+    for v in outputs:
+      if v > 0 and v < 128:
+        sys.stdout.write(chr(v))
+    print('='*72)
     print(dict(part2=dt_part2_results))
