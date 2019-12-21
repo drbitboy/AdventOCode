@@ -2,7 +2,7 @@ import os
 import sys
 import pickle
 import intcode
-import functions
+import splitter
 try: import Queue as queue
 except: import queue
 
@@ -169,7 +169,7 @@ def part2(icode):
 
   s_commands = ','.join(lt_commands)
 
-  dt_fs = functions.functions
+  dt_fs = splitter.functions
   keys = sorted(list(dt_fs.keys()))
   main_routine = s_commands
   for key in keys:
