@@ -1,8 +1,6 @@
 
 PYFILE=$(shell basename $(PWD)).py
-run: 15.pickle
-
-15.pickle: $(PYFILE) Makefile
+run:
 	@PYTHONPATH=../common python $(PYFILE) input.txt
 
 test:
