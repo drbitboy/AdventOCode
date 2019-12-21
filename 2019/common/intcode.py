@@ -1,7 +1,7 @@
 import os
 import sys
 
-do_debug = 'DEBUG' in os.environ
+do_debug = 'INTCODE_DEBUG' in os.environ
 
 ########################################################################
 class INTCODE(object):
