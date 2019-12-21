@@ -2,6 +2,7 @@ import os
 import sys
 import pickle
 import intcode
+import functions
 try: import Queue as queue
 except: import queue
 
@@ -18,6 +19,11 @@ north,east,south,west = 'north east south west'.split()
 ### 4:  direction name
 
 
+cnorth,ceast,csouth,cwest,cnl,chash,cdot = sall = '^>v<\n#.'
+chash3 = [chash] * 3
+sdirs = sall[:4]
+
+
 tp_dirs = ((0,1,0,-1,north,)
           ,(1,4,1,0,east,)
           ,(2,2,0,1,south,)
@@ -27,8 +33,10 @@ Rdir = range(len(tp_dirs))
 def keytup(tup): return tup[0],tup
 dt_dirs = dict(map(keytup,tp_dirs))
 
-for key in dt_dirs.keys(): dt_dirs[dt_dirs[key][0]] = dt_dirs[key]
+dt_dirs.update(dict([(eval('c{0}'.format(tp_dir[-1])),tp_dir,) for tp_dir in tp_dirs]))
 
+
+########################################################################
 def turn(tp_dir,left):
   """Turn left or right"""
   return dt_dirs[(tp_dir[0] + (left and 3 or 1)) % 4]
@@ -45,200 +53,6 @@ def move(pos,tp_dir):
   """Add 2D unit vector of direction to 2D position"""
   return (pos[0]+tp_dir[2],pos[1]+tp_dir[3],)
 
-def manh(pos0,pos1):
-   """Manhattan Distance between two 2D positions"""
-   return abs(pos0[0]-pos1[0]) + abs(pos0[1]-pos1[1])
-
-assert 15==manh((10,20,None,),('a',1,26,None,)[1:])
-
-########################################################################
-def explore(instance, tp_pos, st_visited, st_blocked, found2):
-  """
-  Recursive depth-first search of all adjacent non-blocked spots
-
-  """
-  st_visited.add(tp_pos)
-  Lo = len(instance.outputs)
-  for dir in tp_dirs:
-
-    tp_new_pos = move(tp_pos,dir)
-
-    if (tp_new_pos) in st_visited: continue
-    if (tp_new_pos) in st_blocked: continue
-
-    instance.add_input_data(dir[1],state_must_be_init=False)
-    instance.run()
-    assert instance.state==intcode.INSTANCE.READWAIT
-    Lo += 1
-    assert len(instance.outputs)==Lo
-    result = instance.outputs[-1]
-
-    if not result:
-      st_blocked.add(tp_new_pos)
-      continue
-
-    if 2==result: found2 = tp_new_pos
-
-    found2 = explore(instance,tp_new_pos,st_visited,st_blocked,found2)[-1]
-    Lo = len(instance.outputs)
-
-    back_dir = dt_dirs[(dir[0]+2)%4]
-    instance.add_input_data(back_dir[1],state_must_be_init=False)
-    instance.run()
-    Lo += 1
-    assert len(instance.outputs)==Lo
-    assert instance.outputs[-1]
-    assert move(tp_new_pos,back_dir)==tp_pos
-  
-  return st_visited,st_blocked,found2
-
-
-########################################################################
-def wall_follower(instance):
-
-  """
-  Wall follower code:  assumes all paths are one unit wide
-
-  """
-
-  st_visited = set()
-  st_blocked = set()
-
-  tp_current_dir = dt_dirs[0]
-  tp_position = (0,0,)
-
-  start_direction = tp_current_dir[4]
-  start_position = tp_position
-
-  ### Walk North to a wall
-
-  while instance.state==intcode.INSTANCE.READWAIT:
-    st_visited.add(tp_position)
-
-    if instance.outputs:
-      if not instance.outputs[-1]:
-        ### Found a wall
-        st_blocked.add(move(tp_position,tp_current_dir))
-        break
-      ### Update position
-      tp_position = move(tp_position,tp_current_dir)
-
-    instance.add_input_data(tp_current_dir[1],state_must_be_init=False)
-    instance.run()
-
-  assert instance.state==intcode.INSTANCE.READWAIT
-
-  ### Right-wall-follower maze algorithm
-  ### - Invariant at top of this loop:  facing a wall
-
-  while 2!=instance.outputs[-1] and instance.state==intcode.INSTANCE.READWAIT:
-
-    ################################
-    ### 1) Test invariant
-
-    Lo = len(instance.outputs)
-    instance.add_input_data(tp_current_dir[1],state_must_be_init=False)
-    instance.run()
-    assert instance.state==intcode.INSTANCE.READWAIT
-    Lo += 1
-    assert len(instance.outputs)==Lo
-    assert not instance.outputs[-1]
-
-
-    ################################
-    ### 2) Turn left, check infinite loop, try to take a step
-
-    tp_current_dir = turn_lt(tp_current_dir)
-    ### 2.1) Ensure we did not return to starting state
-    assert start_position!=tp_position or start_direction!=tp_current_dir[4]
-    instance.add_input_data(tp_current_dir[1],state_must_be_init=False)
-    instance.run()
-    Lo += 1
-    assert len(instance.outputs)==Lo
-
-    ################################
-    ### 3) If we hit a wall in this new direction, invariant is valid,
-    ###    add blocked spot, repeat loop
-
-    if not instance.outputs[-1]:
-      st_blocked.add(move(tp_position,tp_current_dir))
-      continue
-
-    ### 4) We did not hit a wall, update the position, add visited spot
-    tp_position = move(tp_position,tp_current_dir)
-    st_visited.add(tp_position)
-    assert start_position!=tp_position or start_direction!=tp_current_dir[4]
-    ### 4.1) Exit loop if we found 2
-    if 2==instance.outputs[-1]: break
-    assert 1==instance.outputs[-1]
-
-    ################################
-    ### 5) We took a step, but did not find 2:
-    ###    - Ensure a wall is on the right before repeating loop:
-    ###      - Turn back to the right and try to take a step
-    ###        - 5.1) Continue (repeat loop) if (same) wall is there
-    ###        - If no wall, then we turned a corner:
-    ###          - 5.2) Update position
-    ###          - 5.3) Turn right to face wall
-    ###          - Invariant should be valid after right turn (5.3)
-
-    tp_current_dir = turn_rt(tp_current_dir)
-    assert start_position!=tp_position or start_direction!=tp_current_dir[4]
-    instance.add_input_data(tp_current_dir[1],state_must_be_init=False)
-    instance.run()
-    Lo += 1
-    assert len(instance.outputs)==Lo
-
-    ### 5.1) if we hit a wall, add blocked spot and do nothing else this pass
-    if not instance.outputs[-1]:
-      st_blocked.add(move(tp_position,tp_current_dir))
-      continue
-
-    ### 5.2) Update position, add visited spot
-    tp_position = move(tp_position,tp_current_dir)
-    st_visited.add(tp_position)
-    assert start_position!=tp_position or start_direction!=tp_current_dir[4]
-    if 2==instance.outputs[-1]: break
-    assert 1==instance.outputs[-1]
-
-    ### 5.3) Turn right to wall
-    tp_current_dir = turn_rt(tp_current_dir)
-    assert start_position!=tp_position or start_direction!=tp_current_dir[4]
-
-  assert 2==instance.outputs[-1]
-  if do_debug:
-    print(instance.outputs[-10:])
-    print((instance.state,intcode.INSTANCE.READWAIT,))
-
-  return st_visited,st_blocked,tp_position
-
-def bfs15(st_visited,st_blocked,found2,start_xy=(0,0,)):
-  """
-  Breadth-First Search of shortest path from (0,0,) to found2
-  via adjacent nodes (x,y pairs) i.e. equal weights
-
-  """
-  if do_debug: print(len(st_visited),len(st_blocked),found2)
-  dt_dists = dict()         ### key is (x,y) position; value is distance
-  qu = queue.Queue()        ### FIFO
-  dt_dists[start_xy] = 0    ### Initial position is at distance zero
-  qu.put(start_xy)          ### Put initial position onto queue
-
-  while not qu.empty():               ### While xys remain in queue..
-    xy = qu.get()                     ### Get first xy (shortest path)
-    if xy==found2:                    ### If xy is the found2 target,
-      return found2,dt_dists[found2]  ###   then return it & distance
-    xy_dist = dt_dists[xy]            ### Save path distance to xy
-    for dir in tp_dirs:               ### For each direction ...
-      new_xy = move(xy,dir)           ###   Calc xy' in that direction
-      if not (new_xy in st_visited):  ###   If xy' is not in graph,
-         continue                     ###     then skip xy'
-      if new_xy in dt_dists:          ###   If xy' has shorter distance
-        continue                      ###     already, then skip xy'
-      dt_dists[new_xy] = xy_dist + 1  ### Give xy' a distance 1 past xy
-      qu.put(new_xy)                  ### Add xy' to queue
-
-  return start_xy,xy_dist             ### Time to fill entire graph
 
 ########################################################################
 def part1(icode):
@@ -250,11 +64,51 @@ def part1(icode):
   """
   instance = intcode.INSTANCE(icode)
   instance.run()
-  print('\n{1}\n{0}\n{1}'.format(''.join([chr(i)
-                                          for i in instance.outputs
-                                         ]).rstrip('\n')
-                                ,'='*72
-                                ))
+
+  lt_rows = list()
+  lt_row = list()
+  result,height = 0,0
+
+  for i in instance.outputs:
+
+    c = chr(i)
+    assert c in sall
+
+    if cnl==c:
+      if not lt_row: break
+      if lt_rows: assert width==len(lt_row)
+      else      : width = len(lt_row)
+      lt_rows.append(lt_row)
+      height = len(lt_rows)
+      lt_row = list()
+
+    else:
+      pos = len(lt_row)
+      if c in sdirs:
+        start_xy = pos,height
+      elif 1<height and chash==c:
+        c2up =lt_rows[-2][pos]
+        c1up =lt_rows[-1][pos-1:pos+2]
+        if (chash==c2up) and (chash3==c1up):
+          result += ((height-1) * pos)
+      lt_row.append(c)
+
+  assert not lt_row
+
+  return dict(result=result
+             ,start_xy=start_xy
+             ,lt_rows=lt_rows
+             ,instance_state=instance.state
+             )
+
+
+########################################################################
+def get_c(lt_rows,xy,dir=None):
+  height,width = len(lt_rows),len(lt_rows[0])
+  x,y = dir is None and xy or move(xy,dir)
+  if x<0 or y<0: return ''
+  if x>=width or y>=height: return ''
+  return lt_rows[y][x]
 
 
 ########################################################################
@@ -263,7 +117,72 @@ def part2(icode):
   Day 15 part 2
 
   """
-  pass
+
+  dt_part1_results = part1(icode)
+
+  lt_rows = dt_part1_results['lt_rows']
+  start_xy = dt_part1_results['start_xy']
+  current_xy = tuple(list(start_xy))
+  current_c = get_c(lt_rows,current_xy)
+  start_dir = dt_dirs[current_c]
+  current_dir = tuple(list(start_dir))
+  assert not (current_xy is start_xy)
+  assert not (current_dir is start_dir)
+
+  linear_steps = 0
+  lt_commands = list()
+
+  while True:
+
+    if do_debug: print(dict(lt_commands_last4=lt_commands[-4:],linear_steps=linear_steps,current_c=current_c,current_xy=current_xy,current_dir=current_dir))
+
+    if chash==get_c(lt_rows,current_xy,current_dir):
+      linear_steps += 1
+      current_xy = move(current_xy,current_dir)
+      current_c = chash
+      continue
+
+    if 0<linear_steps: lt_commands.append('{0}'.format(linear_steps))
+
+    linear_steps = False
+
+    for f in (turn_rt,turn_lt,):
+      new_dir = f(current_dir)
+      if chash==get_c(lt_rows,current_xy,new_dir):
+        current_dir = new_dir
+        current_xy = move(current_xy,new_dir)
+        linear_steps = 1
+        current_c = chash
+        lt_commands.append(f is turn_rt and 'R' or 'L')
+        break
+
+    if do_debug: print(dict(linear_steps=linear_steps,Llt_commands=len(lt_commands)))
+
+    if linear_steps: continue
+    if lt_commands: break
+
+    ### Try opposite direction via two left turns
+
+    current_dir = turn_lt(turn_lt(current_dir))
+    assert chash==get_c(lt_rows,current_xy,current_dir)
+    lt_commands.extend(list('LL'))
+
+  s_commands = ','.join(lt_commands)
+
+  dt_fs = functions.functions
+  keys = list(dt_fs.keys())
+  main_routine = s_commands
+  for key in keys:
+    s_value = dt_fs[key]
+    assert 20 > len(s_value)
+    main_routine = main_routine.replace(s_value,key)
+  main_routine 
+  rtn = dict(s_commands = s_commands
+            ,main_routine = main_routine
+            )
+  rtn .update(dt_fs)
+
+  return rtn
 
 
 ########################################################################
@@ -279,13 +198,17 @@ if "__main__" == __name__:
   if not bn.startswith('sample_input_part2_'):
     ### Get outputs from Intcode instance
     dt_part1_results = part1(icode)
+    with open('17.pickle','wb') as fin:
+      pickle.dump(dt_part1_results,fin)
+    lt_rows = dt_part1_results['lt_rows']
+    del dt_part1_results['lt_rows']
+    if do_debug:
+      print('\n{1}\n{0}\n{1}'.format(cnl.join([''.join([c for c in lt_row])
+                                               for lt_row in lt_rows
+                                              ]).rstrip(cnl)
+                                    ,'='*72
+                                    ))
     print(dict(part1=dt_part1_results))
-    #with open('15.pickle','wb') as fin:
-    #  pickle.dump(dict(explore_results=explore_results
-    #                  ,wall_results=wall_results
-    #                  )
-    #             ,fin
-    #             )
 
   if not bn.startswith('sample_input_part1_'):
     dt_part2_results = part2(icode)
