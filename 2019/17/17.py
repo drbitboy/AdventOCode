@@ -169,7 +169,7 @@ def part2(icode):
 
   s_commands = ','.join(lt_commands)
 
-  dt_fs = splitter.functions
+  dt_fs = splitter.splitter17(s_commands)
   keys = sorted(list(dt_fs.keys()))
   main_routine = s_commands
   for key in keys:
