@@ -63,7 +63,7 @@ hash_bit = mask_bit(chash)
 ########################################################################
 def bfs18(ltb):
   """
-  One argument:  ltb, and instance of class LTB, representing the board
+  One argument:  ltb, an instance of class LTB, representing the board
 
   Breadth-First Search (BFS) of shortest path from start to get all keys
   via adjacent nodes ((x,y,mask,) triples) i.e. equal weights
