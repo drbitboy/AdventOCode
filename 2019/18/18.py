@@ -108,7 +108,7 @@ def bfs18(ltb):
 
   ############################### Setup BFS algorithm
 
-  FM = ltb.full_mask          ### Initialize local Mask, with no keys
+  FM = 0                      ### Initialize local Mask, with no keys
   P0 = ltb.start              ### Initialize position triple (X,Y,Mask,)
   start_xy = XYM(P0,FM)       ### Initialize triple, no keys
 
@@ -123,21 +123,22 @@ def bfs18(ltb):
   while not qu.empty():       ### While xy triples remain in queue ...
     xy = qu.get()             ### Pop first xy (shortest path), and mask
     M = xy[2]                 ### Extract mask from xy
-    if M==hash_bit:           ### If all keys were found, then terminate
+    if M==ltb.full_mask:      ### If all keys were found, then terminate
       return xy,dt_d[xy]      ###   by returning position & distance
     xy_d = dt_d[xy]           ### Store path distance to xy in local var
     for dir in tp_dirs:       ### For each direction ...
       xyp = move(xy,dir)      ###   Calculate xy' in that dir, keep mask
       lbit = Ltb(xyp)         ###   Get 1-bit LTB mask at xy position
-      if (lbit & M):          ###   If LTB mask intersects key not held,
-        if lbit==hash_bit:    ###     Then if there is a hash wall here,
-          continue            ###       then do nothing
-        lu = XYM(xyp,lbit)    ###   Calculate LTB lookup, 1-bit mask
-        if lu in ltb.keys:    ###   If this is a key for a door (lock),
-          b = xyp[2] ^ lbit   ###     Then calculate mask with bit clear
-          xyp = XYM(xyp,b)    ###     And update xy' mask (pick up key)
-        else:                 ###   Else xy' is a door & we have no key,
-          continue            ###     So do nothing
+      if lbit:                ###     If position is not open (not [.])
+        if not (lbit & M):    ###     If mask intersects key not held,
+          if lbit==hash_bit:  ###       Then if there is a hash here,
+            continue          ###         then do nothing
+          lu = XYM(xyp,lbit)  ###     Calculate LTB lookup, 1-bit mask
+          if lu in ltb.keys:  ###     If this is a key for a key,
+            b = xyp[2]|lbit   ###       Then calculate mask with bit set
+            xyp = XYM(xyp,b)  ###       & update xy' mask (pick up key)
+          else:               ###     Else xy' is door & we have no key,
+            continue          ###       So do nothing
       if xyp in dt_d:         ###   If xy' has shorter distance already,
         continue              ###     Then skip xy'
       dt_d[xyp] = xy_d + 1    ### Give xy' a distance 1 past xy
@@ -149,11 +150,11 @@ def bfs18(ltb):
 ########################################################################
 class LTB(list):
 
-  def __init__(self,fn):
+  def __init__(self,fn,tltrblbr=0):
 
     self.ascii = list()
 
-    self.full_mask,self.height,self.keys = hash_bit,0,set()
+    self.full_mask,self.height,self.keys = 0,0,set()
 
     with open(fn,'r') as fin:
       for rawrow in fin:
@@ -176,8 +177,9 @@ class LTB(list):
 
           if not mbc: continue
 
-          self.full_mask |= mbc
-          if c.upper()!=c: self.keys.add((col,self.height,mbc,))
+          if mbc != hash_bit:
+            self.full_mask |= mbc
+            if c.upper()!=c: self.keys.add((col,self.height,mbc,))
 
         self.append(lt_row)
         self.ascii.append(modrow)
